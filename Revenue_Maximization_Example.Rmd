@@ -409,7 +409,7 @@ intercept parameter, $\alpha_m$ at the movie level to our model.
 
 $$
 \texttt{qty_sld}_{m,t} \sim \text{Neg-Binomial-log}(\eta_{m,t}, \phi) \\
-\eta_{m,t} = \alpha_b + \beta \, p_{m,t} + \beta_{\texttt{rel_year}} \, \texttt{rel_year}_{m} \\
+\eta_{m,t} = \alpha_m + \beta \, p_{m,t} + \beta_{\texttt{rel_year}} \, \texttt{rel_year}_{m} \\
 \alpha_m \sim \text{Normal}(\alpha, \sigma_{\alpha})
 $$
 
@@ -447,6 +447,10 @@ comp_model_NB_hier <- stan_model('stan_programs/hier_NB_regression.stan')
 
 ```{r run-NB-hier, eval=FALSE}
 fitted_model_NB_hier <- sampling(comp_model_NB_hier, data = stan_dat_hier, chains = 4, cores = 4)
+```
+
+```{r} 
+samps_hier_NB <- rstan::extract(fitted_model_NB_hier)
 ```
 
 Let's examine the fit of the new model. 
