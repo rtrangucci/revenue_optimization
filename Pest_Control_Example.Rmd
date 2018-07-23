@@ -41,7 +41,6 @@ pest_data <- readRDS('data/building_data_20180723.RDS')
 head(pest_data)
 ```
 
-
 ```{r describe-data}
 N_buildings <- length(unique(pest_data$building_id))
 N_buildings
@@ -50,7 +49,11 @@ N_buildings
 We're working with `r N_buildings` buildings. We should first want to learn whether the number of complaints is
 related to number of cockroach traps. 
 
-How can we model the number of complaints? We already know some rudimentary information about what we should expect. The number of complaints over a month should be either zero or an integer. The property manager tells us that it is possible but unlikely that number of complaints in a given month is zero. Occasionally there are a very large number of complaints in a single month. A common way of modelling this sort of skewed, single bounded count data is as a Poisson random variable. In this case we can see that our outcome variable is overdispersed - that is, the variance is larger than the mean - so we will model this using a negative binomial random variable instead. 
+##Modeling count data 
+
+How can we model the number of complaints? We already know some rudimentary information about what we should expect. The number of complaints over a month should be either zero or an integer. The property manager tells us that it is possible but unlikely that number of complaints in a given month is zero. Occasionally there are a very large number of complaints in a single month. A common way of modelling this sort of skewed, single bounded count data is as a Poisson random variable. One concern about modelling the outcome variable as a Poisson is that the data may be over-dispersed, but we'll start with this simple model and build it up slowly.
+
+In this case we can see that our outcome variable is overdispersed - that is, the variance is larger than the mean - so we will model this using a negative binomial random variable instead. 
 
 We will start with a simple model and build it up slowly. First, we'll define our 
 likelihood to be the negative binomial probability mass function over the number
@@ -112,7 +115,7 @@ Before we fit the first model we defined above, let's generate some fake data ag
 test our Stan program. If we are able to recover known parameter values, it is a good indication
 that our Stan program is working.
 
-Let's compile the fake data generating code in the file simple_NB_poisson_dgp.stan.
+Let's compile the fake data generating code in the file simple_poisson_regression_dgp.stan.
 
 ```{r compNBdgp, cache=T, results="hide", message=FALSE}
 comp_dgp_simple <- stan_model('stan_programs/simple_poisson_regression_dgp.stan')
