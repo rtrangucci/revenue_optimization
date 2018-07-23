@@ -1,6 +1,6 @@
 data {
   int<lower=1> N;
-  vector[N] price;
+  vector[N] traps;
 }
 model {
 } 
@@ -10,5 +10,5 @@ generated quantities {
   real beta = -fabs(normal_rng(0, 0.5));
   
   for (n in 1:N) 
-    y_gen[n] = poisson_log_rng(alpha + beta * price[n]);
+    y_gen[n] = poisson_log_rng(alpha + beta * traps[n]);
 }

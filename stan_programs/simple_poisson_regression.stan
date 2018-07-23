@@ -8,8 +8,8 @@ functions {
 }
 data {
   int<lower=1> N;
-  int qty_sld[N];
-  vector[N] price;
+  int complaints[N];
+  vector[N] traps;
 }
 parameters {
   real alpha;
@@ -19,11 +19,11 @@ model {
   beta ~ normal(0, 0.5);
   alpha ~ normal(4, 2);
   
-  qty_sld ~ poisson_log(alpha + beta * price);
+  complaints ~ poisson_log(alpha + beta * traps);
 } 
 generated quantities {
   vector[N] pp_y;
   
   for (n in 1:N) 
-    pp_y[n] = poisson_log_safe_rng(alpha + beta * price[n]);
+    pp_y[n] = poisson_log_safe_rng(alpha + beta * traps[n]);
 }

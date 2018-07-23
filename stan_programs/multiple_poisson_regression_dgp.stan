@@ -1,19 +1,20 @@
 data {
   int<lower=1> N;
-  vector[N] price;
-  vector[N] rel_year;
-  vector[N] rating;
+  vector[N] traps;
+  vector[N] live_in_super;
+  vector[N] sq_foot;
 }
 model {
 } 
 generated quantities {
   vector[N] y_gen;
-  real alpha = normal_rng(4, 2);
+  real alpha = normal_rng(0.5, 0.25);
   real beta = -fabs(normal_rng(0, 0.5));
-  real beta_year = normal_rng(1, 0.5);
-  real beta_rating = normal_rng(1, 0.5);
+  real beta_sq_foot = normal_rng(0, 0.5);
+  real beta_super = normal_rng(-0.5, 0.5);
   
   for (n in 1:N) 
-    y_gen[n] = poisson_log_rng(alpha + beta * price[n] + beta_year * rel_year[n]
-                               + beta_rating * rating[n]);
+    y_gen[n] = poisson_log_rng(alpha + beta_sq_foot * sq_foot[n] 
+                               + beta * traps[n] 
+                               + beta_super * live_in_super[n]);
 }
