@@ -169,6 +169,8 @@ ppc_rootogram(stan_dat_fake$complaints, yrep = y_rep)
 ```
 
 
+### Fit with real data 
+
 ```{r fit_P_real_data, cache=T}
 fit_P_real_data <- sampling(comp_model_P, data = stan_dat_simple, chains = 4, cores =4 )
 ```
@@ -194,6 +196,8 @@ qplot(mean_y_rep, std_resid) + hline_at(1) + hline_at(-1)
 ppc_rootogram(stan_dat_simple$complaints, yrep = y_rep)
 ```
 
+### Is there more info we can use?
+
 Maybe there're some good information that we're not using, like the
 square footage of the building?
 
@@ -218,12 +222,27 @@ comp_dgp_multiple <- stan_model('stan_programs/multiple_poisson_regression_dgp.s
 ```
 
 ```{r runpoissondgp}
-fitted_model_dgp <- sampling(comp_dgp_multiple, data = stan_dat_fake, chains = 1, cores = 1, iter = 1, algorithm='Fixed_param', seed=123)
+fitted_model_dgp <-
+  sampling(
+  comp_dgp_multiple,
+  data = list(N = nrow(pest_data)),
+  chains = 1,
+  cores = 1,
+  iter = 1,
+  algorithm = 'Fixed_param',
+  seed = 123
+  )
 samps_dgp <- rstan::extract(fitted_model_dgp)
 ```
 
 ```{r P_fake_stan_dat}
-stan_dat_fake$complaints <- samps_dgp$y_gen[1,]
+stan_dat_fake <- list(
+  N = nrow(pest_data), 
+  sq_foot = samps_dgp$sq_foot[1, ],
+  live_in_super = samps_dgp$live_in_super[1, ],
+  traps = samps_dgp$traps[1, ], 
+  complaints = samps_dgp$complaints[1, ]
+)
 ```
 
 ```{r compNB, cache=T, results="hide", message=FALSE}
@@ -232,39 +251,34 @@ comp_model_P_mult <- stan_model('stan_programs/multiple_poisson_regression.stan'
 
 ```{r runPoverfake}
 fit_model_P_mult <- sampling(comp_model_P_mult, data = stan_dat_fake, chains = 4, cores = 4)
-samps_pars <- as.matrix(fit_model_P_mult, pars = c('alpha','beta','beta_super','beta_sq_foot'))
+posterior_alpha_beta <- as.matrix(fit_model_P_mult, pars = c('alpha','beta','beta_super','beta_sq_foot'))
 ```
 
 ```{r}
-bayesplot::mcmc_recover_intervals(samps_pars,
-                             c(samps_dgp$alpha,samps_dgp$beta,samps_dgp$beta_super,samps_dgp$beta_sq_foot))
+true_alpha_beta <- c(samps_dgp$alpha,samps_dgp$beta,samps_dgp$beta_super,samps_dgp$beta_sq_foot)
+bayesplot::mcmc_recover_hist(posterior_alpha_beta, true = true_alpha_beta)
 ```
 
 Now let's fit to real data.
 
-[Note to Jonah: If we don't rescale the predictors, we get a bunch of max treedepth warnings, because our
-priors aren't well matched to the scale of the data. I know this is something you like to talk about, so
-we can do that here, but I didn't broach it because it'll take some work to build a model that fits poorly
-but not egregiously so, in order to not get treedepth warnings]
+<!-- [Note to Jonah: If we don't rescale the predictors, we get a bunch of max treedepth warnings, because our -->
+<!-- priors aren't well matched to the scale of the data. I know this is something you like to talk about, so -->
+<!-- we can do that here, but I didn't broach it because it'll take some work to build a model that fits poorly -->
+<!-- but not egregiously so, in order to not get treedepth warnings] -->
 
 ```{r fit_mult_P_real_dat}
-stan_dat_simple$live_in_super <- scale(stan_dat_simple$live_in_super)[,1]
 fit_model_P_mult_real <- sampling(comp_model_P_mult, data = stan_dat_simple, cores = 4, chains = 4)
 ```
 
 ```{r marginal_PPC}
-samps_P_real_data <- rstan::extract(fit_model_P_mult_real)
-bayesplot::ppc_dens_overlay(stan_dat_simple$complaints, 
-                          samps_P_real_data$pp_y[1:200,])
+y_rep <- as.matrix(fit_model_P_mult_real, pars = "y_rep")
+bayesplot::ppc_dens_overlay(stan_dat_simple$complaints, y_rep[1:200,])
 ```
 
 ```{r marginal_PPC}
-y_rep <- samps_P_real_data$pp_y
 mean_y_rep <- colMeans(y_rep)
 std_resid <- (stan_dat_simple$complaints - mean_y_rep) / sqrt(mean_y_rep)
-plot(mean_y_rep, std_resid)
-abline(h=1)
-abline(h=-1)
+qplot(mean_y_rep, std_resid) + hline_at(1) + hline_at(-1)
 ```
 
 ```{r}
