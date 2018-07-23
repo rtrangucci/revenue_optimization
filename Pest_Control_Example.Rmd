@@ -86,19 +86,6 @@ variance roughly equal to its mean. We probably wouldn't expect this to hold
 across movies because different movies likely have different average sales per
 week.
 
-```{r}
-agg_data <- movie_data %>% group_by(title) %>% 
-  summarise(mean_qty_sld = mean(units_sold),
-            var_qty_sld = var(units_sold),
-            rel_date = first(release_year))
-head(agg_data)
-```
-
-So it does appear that the variance of the weekly sales data is greater than the mean, indicating
-that our outcome would be better modeled by a negative binomial distribution than by a Poisson
-distribution.
-
-
 Let's prep the data. First, because we're concerned about comparing our
 predictions for certain products, and we'd like to do the comparison in Stan, we
 should convert our titles to integers.
@@ -132,38 +119,38 @@ that our Stan program is working.
 
 Let's compile the fake data generating code in the file simple_NB_poisson_dgp.stan.
 
-```{r compNBdgp, cache=T, results="hide", message=FALSE, eval=FALSE}
+```{r compNBdgp, cache=T, results="hide", message=FALSE}
 comp_dgp_simple <- stan_model('stan_programs/simple_poisson_regression_dgp.stan')
 ```
 
-```{r, eval=FALSE}
+```{r}
 set.seed(1123)
 fake_gen_data <- stan_dat_simple
 fake_gen_data$traps <- rnorm(fake_gen_data$N)
 ```
 
-```{r runpoissondgp, eval=FALSE}
+```{r runpoissondgp}
 fitted_model_dgp <- sampling(comp_dgp_simple, data = fake_gen_data, chains = 1, cores = 1, iter = 1, algorithm='Fixed_param', seed=123)
 samps_dgp <- rstan::extract(fitted_model_dgp)
 ```
 
 
-```{r P_fake_stan_dat, eval=FALSE}
+```{r P_fake_stan_dat}
 stan_dat_fake <- fake_gen_data
 stan_dat_fake$complaints <- samps_dgp$y_gen[1,]
 ```
 
-```{r compNB, cache=T, results="hide", message=FALSE, eval=FALSE}
+```{r compNB, cache=T, results="hide", message=FALSE}
 comp_model_P <- stan_model('stan_programs/simple_poisson_regression.stan')
 ```
 
-```{r runPoverfake, eval=FALSE}
+```{r runPoverfake}
 fit_model_P <- sampling(comp_model_P, data = stan_dat_fake, chains = 4, cores = 4)
 samps_P <- rstan::extract(fit_model_P)
 samps_pars <- as.matrix(fit_model_P, pars = c('alpha','beta'))
 ```
 
-```{r, eval=FALSE}
+```{r}
 bayesplot::mcmc_recover_hist(samps_pars, c(samps_dgp$alpha,samps_dgp$beta))
 ```
 
@@ -229,29 +216,29 @@ stan_dat_fake$sq_foot <- rnorm(stan_dat_fake$N)
 stan_dat_fake$live_in_super <- rnorm(stan_dat_fake$N)
 ```
 
-```{r compmultPDGP, cache=T, results="hide", message=FALSE, eval=FALSE}
+```{r compmultPDGP, cache=T, results="hide", message=FALSE}
 comp_dgp_multiple <- stan_model('stan_programs/multiple_poisson_regression_dgp.stan')
 ```
 
-```{r runpoissondgp, eval=FALSE}
+```{r runpoissondgp}
 fitted_model_dgp <- sampling(comp_dgp_multiple, data = stan_dat_fake, chains = 1, cores = 1, iter = 1, algorithm='Fixed_param', seed=123)
 samps_dgp <- rstan::extract(fitted_model_dgp)
 ```
 
-```{r P_fake_stan_dat, eval=FALSE}
+```{r P_fake_stan_dat}
 stan_dat_fake$complaints <- samps_dgp$y_gen[1,]
 ```
 
-```{r compNB, cache=T, results="hide", message=FALSE, eval=FALSE}
+```{r compNB, cache=T, results="hide", message=FALSE}
 comp_model_P_mult <- stan_model('stan_programs/multiple_poisson_regression.stan')
 ```
 
-```{r runPoverfake, eval=FALSE}
+```{r runPoverfake}
 fit_model_P_mult <- sampling(comp_model_P_mult, data = stan_dat_fake, chains = 4, cores = 4)
 samps_pars <- as.matrix(fit_model_P_mult, pars = c('alpha','beta','beta_super','beta_sq_foot'))
 ```
 
-```{r, eval=FALSE}
+```{r}
 bayesplot::mcmc_recover_intervals(samps_pars,
                              c(samps_dgp$alpha,samps_dgp$beta,samps_dgp$beta_super,samps_dgp$beta_sq_foot))
 ```
@@ -315,25 +302,25 @@ variance roughly equal to its mean. We probably wouldn't expect this to hold
 across movies because different movies likely have different average sales per
 week.
 
-```{r compNBdgp, cache=T, results="hide", message=FALSE, eval=FALSE}
+```{r compNBdgp, cache=T, results="hide", message=FALSE}
 comp_dgp_mult_NB <- stan_model('stan_programs/multiple_NB_regression_dgp.stan')
 ```
 
 We're going to generate one draw from the fake data model so we can use the data to fit our
 model and compare the known values of the parameters to the posterior density of the parameters.
 
-```{r runNBdgp, eval=FALSE}
+```{r runNBdgp}
 fitted_model_dgp <- sampling(comp_dgp_mult_NB, data = stan_dat_fake, chains = 1, cores = 1, iter = 1, algorithm='Fixed_param',seed=1796604581)
 samps_dgp <- rstan::extract(fitted_model_dgp)
 ```
 
 We create a new dataset with the fake outcome data replacing the true observed outcomes.
 
-```{r fake_stan_dat, eval=FALSE}
+```{r fake_stan_dat}
 stan_dat_fake$complaints <- samps_dgp$y_gen[1,]
 ```
 
-```{r compNB, cache=T, results="hide", message=FALSE, eval=FALSE}
+```{r compNB, cache=T, results="hide", message=FALSE}
 comp_model_NB <- stan_model('stan_programs/multiple_NB_regression.stan')
 ```
 
@@ -341,13 +328,13 @@ Now we run our NB regression over the fake data and extract the samples to
 examine posterior predictive checks and to check whether we've sufficiently
 recovered our known parameters, $\texttt{alpha}$ $\texttt{beta}$.
 
-```{r runNBoverfake, eval=FALSE}
+```{r runNBoverfake}
 fitted_model_NB <- sampling(comp_model_NB, data = stan_dat_fake, chains = 4, cores = 4)
 samps_NB <- rstan::extract(fitted_model_NB)
 samps_pars <- as.matrix(fitted_model_NB, pars = c('alpha','beta','beta_super','beta_sq_foot','inv_prec'))
 ```
 
-```{r, eval=FALSE}
+```{r}
 bayesplot::mcmc_recover_intervals(samps_pars, 
                               c(samps_dgp$alpha,
                                 samps_dgp$beta,
@@ -357,14 +344,14 @@ bayesplot::mcmc_recover_intervals(samps_pars,
 The parameter recovery looks good. Let's run the model over the real data and see
 how our model fares!
 
-```{r runNB, eval=FALSE}
+```{r runNB}
 fitted_model_NB <- sampling(comp_model_NB, data = stan_dat_simple, chains = 4, cores = 4)
 samps_NB <- rstan::extract(fitted_model_NB)
 ```
 
 Let's look at our predictions vs. the data.
 
-```{r ppc-full, eval=FALSE}
+```{r ppc-full}
 bayesplot::ppc_dens_overlay(stan_dat_simple$complaints, 
                             samps_NB$pp_y[1:200,])
 ```
@@ -390,7 +377,7 @@ from the model?
 We can look at the distribution of the means vs. our observed means by movie to
 see whether we're at least modeling the means well at the movie level.
 
-```{r ppc-group_means, eval=FALSE}
+```{r ppc-group_means}
 groups <- 1:N_buildings
 stan_dat_simple$building_idx <- pest_data$building_id
 sel_vec <- stan_dat_simple$building_idx %in% groups
@@ -433,13 +420,13 @@ stan_dat_hier <- with(pest_data, list(complaints = complaints,
                                        building_idx = building_id))
 ```
 
-```{r comp-NB-hier, cache=T, results="hide", message=FALSE, eval=FALSE}
+```{r comp-NB-hier, cache=T, results="hide", message=FALSE}
 comp_model_NB_hier <- stan_model('stan_programs/hier_NB_regression.stan')
 ```
 
 [Jonah, the doc is good up until here, working on hierarchical NB models now]
 
-```{r run-NB-hier, eval=FALSE}
+```{r run-NB-hier}
 fitted_model_NB_hier <- sampling(comp_model_NB_hier, data = stan_dat_hier, chains = 4, cores = 4)
 ```
 
@@ -449,7 +436,7 @@ samps_hier_NB <- rstan::extract(fitted_model_NB_hier)
 
 Let's examine the fit of the new model. 
 
-```{r print-NB-hier, eval=FALSE}
+```{r print-NB-hier}
 print(fitted_model_NB_hier, pars = c('sigma_alpha','beta','alpha','prec','alphas'))
 ```
 
@@ -462,11 +449,24 @@ the random intercept $\alpha_m$, which is distributed:
 \end{align*}
 
 ```{r}
-bayesplot::mcmc_trace(rstan::extract(fitted_model_NB_hier,pars = 'sigma_alpha',permute=F))
+bayesplot::mcmc_trace(as.array(fitted_model_NB_hier,pars = 'sigma_alpha'), 
+                      np = nuts_params(fitted_model_NB_hier))
 ```
 
 ```{r}
-plot(samps_hier_NB$alphas[,5],log(samps_hier_NB$sigma_alpha))
+mcmc_scatter(
+  as.array(fitted_model_NB_hier),
+  pars = c("alphas[4]", 'sigma_alpha'), 
+  transform = list('sigma_alpha' = "log"), 
+  np = nuts_params(fitted_model_NB_hier)
+)
+```
+
+```{r}
+mcmc_parcoord(
+  as.array(fitted_model_NB_hier, pars = c("sigma_alpha", "alphas")),
+  np = nuts_params(fitted_model_NB_hier)
+)
 ```
 
 Instead, we should use the non-centered parameterization for $\alpha_m$. We
@@ -489,11 +489,11 @@ $\texttt{sigma_alpha}$ ($\sigma_\alpha$). hier_NB_regression_ncp.stan uses the n
 parameterization for $\texttt{alphas}$. We will examine the effective sample size of the
 fitted model to see whether we've fixed the problem with our reparameterization.
 
-```{r comp-NB-hier-ncp, eval=FALSE}
+```{r comp-NB-hier-ncp}
 comp_model_NB_hier_ncp <- stan_model('stan_programs/hier_NB_regression_ncp.stan')
 ```
 
-```{r run-NB-hier-ncp, eval=FALSE}
+```{r run-NB-hier-ncp}
 fitted_model_NB_hier_ncp <- sampling(comp_model_NB_hier_ncp, data = stan_dat_hier, chains = 4, cores = 4)
 fitted_model_NB_hier_ncp <- sampling(comp_model_NB_hier_ncp, data = stan_dat_hier, chains = 4, cores = 4, 
                                      control = list(adapt_delta=0.9))
@@ -501,7 +501,7 @@ fitted_model_NB_hier_ncp <- sampling(comp_model_NB_hier_ncp, data = stan_dat_hie
 
 Examining the fit of the new model
 
-```{r n-eff-NB-hier-ncp-check, eval=FALSE}
+```{r n-eff-NB-hier-ncp-check}
 print(fitted_model_NB_hier_ncp, pars = c('sigma_alpha','beta','alpha','prec','alphas'))
 ```
 
@@ -510,7 +510,7 @@ decreased the effective sample size of $\texttt{sigma_alpha}$. We'll stick with 
 non-centered parameterization as long as it appears feasible when we examine our model
 diagnostics.
 
-```{r samps-full-hier, eval=FALSE}
+```{r samps-full-hier}
 samps_NB_hier_ncp <- rstan::extract(fitted_model_NB_hier_ncp, pars = c('pp_y','inv_prec'))
 ```
 
@@ -518,7 +518,7 @@ Extracting the draws from the model allows us to see how we've fitted the margin
 distribution of the data with draws from the marginal posterior predictive distribution.
 That plot is below.
 
-```{r ppc-full-hier, eval=FALSE}
+```{r ppc-full-hier}
 bayesplot::ppc_dens_overlay(stan_dat_simple$complaints, 
                           samps_NB_hier_ncp$pp_y[1:200,])
 ```
@@ -527,7 +527,7 @@ This looks quite nice. If we've captured the movie-level means well, then the
 posterior distribution of means by movie should match well with the observed
 means of the quantity of movie sales by week.
 
-```{r ppc-group_means-hier, eval=FALSE}
+```{r ppc-group_means-hier}
 bayesplot::ppc_stat_grouped(stan_dat_simple$complaints, 
                             samps_NB_hier_ncp$pp_y[1:200,], group = stan_dat_simple$building_idx, stat = 'mean')
 ```
@@ -558,11 +558,11 @@ fit.
 \beta_m & \sim \text{Normal}(\beta, \sigma_{\beta})
 \end{align*}
 
-```{r comp-NB-hier-slopes, cache=T, results="hide", message=FALSE, eval=FALSE}
+```{r comp-NB-hier-slopes, cache=T, results="hide", message=FALSE}
 comp_model_NB_hier_slopes <- stan_model('hier_slopes_NB_regression_ncp.stan')
 ```
 
-```{r run-NB-hier-slopes, eval=FALSE}
+```{r run-NB-hier-slopes}
 fitted_model_NB_hier_slopes <- sampling(comp_model_NB_hier_slopes, data = stan_dat_simple, chains = 4, cores = 4)
 samps_NB_hier_slopes <- rstan::extract(fitted_model_NB_hier_slopes, pars = c('sigma_beta',
                                                                               'pp_y'))
@@ -571,7 +571,7 @@ samps_NB_hier_slopes <- rstan::extract(fitted_model_NB_hier_slopes, pars = c('si
 To see if the model infers movie-to-movie differences in , we can plot a histogram of our marginal
 posterior distribution for $\texttt{sigma_beta}$. 
 
-```{r, eval=FALSE}
+```{r}
 hist(samps_NB_hier_slopes$sigma_beta,breaks=50)
 ```
 
@@ -579,7 +579,7 @@ While the model can't specifically rule out zero from the posterior, it does hav
 non-zero numbers, so we should leave in the hierarchy over $\texttt{betas}$. Plotting the marginal
 data density again, we can see the model still looks well calibrated.
 
-```{r ppc-full-hier-slopes, eval=FALSE}
+```{r ppc-full-hier-slopes}
 bayesplot::ppc_dens_overlay(stan_dat_simple$qty_sld, 
                             samps_NB_hier_slopes$pp_y[1:200,]) + xlim(c(0,100))
 ```
@@ -587,7 +587,7 @@ bayesplot::ppc_dens_overlay(stan_dat_simple$qty_sld,
 Perhaps we add monthly random intercepts to our model. Let's look at the data to see if this
 is warranted.
 
-```{r ppc-group_max-hier-slopes-mean-by-mo, eval=FALSE}
+```{r ppc-group_max-hier-slopes-mean-by-mo}
 bayesplot::ppc_stat_grouped(stan_dat_simple$qty_sld, 
                             samps_NB_hier_slopes$pp_y[1:200,], group = stan_dat_simple$mo_idx, stat = 'mean')
 ```
@@ -595,11 +595,11 @@ bayesplot::ppc_stat_grouped(stan_dat_simple$qty_sld,
 We might be missing information in month indicators. It makes sense, when it gets colder
 out there might be more of an incentive to watch movies (at least in the Northeast).
 
-```{r comp-NB-hier-mos, cache=T, results="hide", message=FALSE, eval=FALSE}
+```{r comp-NB-hier-mos, cache=T, results="hide", message=FALSE}
 comp_model_NB_hier_mos <- stan_model('hier_slopes_NB_regression_mos.stan')
 ```
 
-```{r run-NB-hier-slopes-mos, eval=FALSE}
+```{r run-NB-hier-slopes-mos}
 fitted_model_NB_hier_mos <- sampling(comp_model_NB_hier_mos, data = stan_dat_simple, chains = 4, cores = 4)
 ```
 
@@ -607,11 +607,11 @@ We get divergent transitions in our run. Let's reparameterize our prior on the $
 intercept to be a centered hierarchical normal. We only observed divergent transitions after
 running the model with monthly random effect
 
-```{r comp-NB-hier-mos-cp, cache=T, results="hide", message=FALSE, eval=FALSE}
+```{r comp-NB-hier-mos-cp, cache=T, results="hide", message=FALSE}
 comp_model_NB_hier_mos_cp <- stan_model('hier_slopes_NB_regression_mos_cp.stan')
 ```
 `
-```{r run-NB-hier-slopes-mos-cp, cache=TRUE, eval=FALSE}
+```{r run-NB-hier-slopes-mos-cp, cache=TRUE}
 fitted_model_NB_hier_mos_cp <- sampling(comp_model_NB_hier_mos_cp, data = stan_dat_simple, chains = 4, cores = 4, control = list(adapt_delta=0.80))
 saveRDS(fitted_model_NB_hier_mos_cp,file = 'fitted_model_NB_hier_mos_cp.RDS')
 samps_NB_hier_mos_cp <- rstan::extract(fitted_model_NB_hier_mos_cp, pars = c('pp_y'))
@@ -625,12 +625,12 @@ structure into the priors for our model?
 
 In the interest of brevity, we won't go on expanding the model. 
 
-```{r ppc-full-hier-mos, eval=FALSE}
+```{r ppc-full-hier-mos}
 bayesplot::ppc_dens_overlay(stan_dat_simple$qty_sld, 
                             samps_NB_hier_mos_cp$pp_y[1:200,]) + xlim(c(0,100))
 ```
 
-```{r, eval=FALSE}
+```{r}
 bayesplot::ppc_stat_grouped(stan_dat_simple$qty_sld, 
                             samps_NB_hier_mos_cp$pp_y[1:200,], group = stan_dat_simple$mo_idx, stat = 'mean')
 ```
