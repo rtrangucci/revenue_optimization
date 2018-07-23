@@ -18,28 +18,19 @@ library(ggplot2)
 
 ## Problem set-up
 
-Let's say that we're a data scientist at a large media company. We are told that
-we have the power to set prices for all streaming movies at whatever we want in
-order to maximize revenue. How should we go about learning how to maximize
-revenue for each movie? Our data might look like the number of movies sold per
-day, $y_{b,t}$ at a price $p_{b,t}$.
+LLet's say that you're a data scientist working as an independent contractor. You're contacted by the property manager of a large property network in New York City. They explain that they are having an issue with the number of cockroach complaints that they receive from their buildings. Previously they have offered monthly visits from a pest inspector as a solution to this problem. While this is the default solution of many property managers in NYC, the tennants are rarely home when the inpector visits, and so the manager reasons that this is a relatively expensive solution that is currently not very effective.
 
-Well, one way we could do this is to use the data we have to estimate the demand curve for the 
-products. Luckily, our company has exclusive rights to each of the movies, and has 
-engaged in random pricing trials for the past 10 months. That means that on random weeks,
-movies have had their prices randomly jittered by one dollar up or down. The prices can only be
-set on a grid of whole dollars. 
+One alternative to this problem is to deploy long term bait stations. In this alternative child and pet safe bait stations are installed throughout the apartment building. Cockroaches obtain quick acting poison from these stations distribute it throughout the colony. The manufactorer for these bai stations provides some indication of the space to bait efficacy, but the manager suspects that this guidance was not calculated for NYC roaches. NYC roaches, the manager rationalises, have more hustle than traditional roaches; and NYC buildings are built differently to other common domestic buildings in the US. This is particularly important as the unit cost for each bait station is quite high.
 
-The decision problem we want to solve is the following:
+The manager wishes to employ your services to help them to optomize the number of roach bait stations they should place in each of their buildings in order to minimise both the number of cockroach complaints and expenditure on pest control. They have randomly selected `r N_buildings` buildings. At the beginning of each month, a pest inspector randomly places a number of bait stations throughout the building, without knowledge of the current cockroach levels in the building. At the end of the month, the manager records the total number of cockroach complaints in that building. The manager would like to predict the optimise number of traps ($t$) and complaints ($c$) for these `r N_buildings` 10 buildings, and predict for new buildings how many bait stations they should place. 
 
 \begin{align*}
-\arg\max_{p \in P} \mathbb{E}_q[q(p) \, p]
+\arg\min_{t \in T} \mathbb{E}_c[c(t) \, t]
 \end{align*}
 
-Because we have complete control over price, the random variable contributing to the expectation
-is quantity. That's what we'll be modeling for these movies, the quantity as a function of price.
+As the property manager has complete control over the number of traps set, the random variable contributing to this expectation is the number of complaints given the number of traps. We will model the number of complaints as a function of the number of traps. 
 
-The data is in a file called $\texttt{movie_data_tt_new_set.RDS}$. Let's load the data and see what the structure
+The data is in a file called $\texttt{building_data_20180723.RDS}$. Let's load the data and see what the structure
 is:
 
 ```{r load-data}
@@ -53,17 +44,17 @@ N_buildings <- length(unique(pest_data$building_id))
 N_buildings
 ```
 
-We're working with `r N_buildings` buildings. We should first want to learn whether price is
-related to quantity for our movies. 
+We're working with `r N_buildings` buildings. We should first want to learn whether the number of complaints is
+related to number of cockroach traps. 
 
-[filler about count data modeling and using Poisson outcome]
+How can we model the number of complaints? We already know some rudimentary information about what we should expect. The number of complaints over a month should be either zero or an integer. The property manager tells us that it is possible but unlikely that number of complaints in a given month is zero. Occasionally there are a very large number of complaints in a single month. A common way of modelling this sort of skewed, single bounded count data is as a Poisson random variable. In this case we can see that our outcome variable is overdispersed - that is, the variance is larger than the mean - so we will model this using a negative binomial random variable instead. 
 
-We'll start with a simple model and build it up slowly. First, we'll define our 
+We will start with a simple model and build it up slowly. First, we'll define our 
 likelihood to be the negative binomial probability mass function over the number
-of units sold, denoted below as $\texttt{qty_sld}$.
+of traps placed in the building, denoted below as $\texttt{n_complaints}$.
 
 \begin{align*}
-\texttt{qty_sld}_{m,t} & \sim \text{Neg-Binomial-log}(\eta_{m,t}, \phi) \\
+\texttt{n_complaints}_{m,t} & \sim \text{Neg-Binomial-log}(\eta_{m,t}, \phi) \\
 \eta_{m,t} & = \alpha + \beta \, p_{m,t}
 \end{align*}
 
@@ -73,7 +64,7 @@ This is negative binomial mass function that is parameterized in terms of its
 log-mean, $\eta$, and its precision $\phi$. This means that $\mathbb{E}[y] \, = exp(\eta)$ 
 and $\text{Var}[y] = \exp(\eta) + \exp(\eta)^2 / \phi$. 
 
-We can use this distribution for our outcome, qty_sld, because we have integer 
+We can use this distribution for our outcome, n_complaints, because we have integer 
 outcomes (number of movies sold per week). However, this isn't a good enough 
 reason to use the negative binomial distribution. We could use a Poisson
 distribution. However, the Poisson distribution has only one parameter, which requires
