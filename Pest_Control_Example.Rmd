@@ -14,6 +14,9 @@ library(dplyr)
 library(reshape2)
 library(bayesplot)
 library(ggplot2)
+
+theme_set(bayesplot::theme_default())
+set.seed(1123) # for R's pseudo-RNGs, not Stan's
 ```
 
 ## Problem set-up
@@ -91,14 +94,13 @@ predictions for certain products, and we'd like to do the comparison in Stan, we
 should convert our titles to integers.
 
 ```{r prep-data}
-t <- max(table(pest_data$building_id))
-J <- length(unique(pest_data$building_id))
+N_months <- max(table(pest_data$building_id))
 pest_data <- pest_data %>%
   mutate(building_fac = as.factor(building_id),
          building_idx = as.integer(building_fac),
-         ids = rep(1:t,J),
+         ids = rep(1:N_months, N_buildings),
          mo_idx = lubridate::month(date))
-meta_data <- unique(pest_data[,c('building_idx','live_in_super', 'age_of_building', 'total_sq_foot',
+building_data <- unique(pest_data[,c('building_idx','live_in_super', 'age_of_building', 'total_sq_foot',
                                'average_tenant_age', 'monthly_average_rent',
                                'floors')]) %>%
   arrange(building_idx) %>% select(-building_idx) %>% as.matrix()
@@ -108,9 +110,11 @@ We create the list to pass into RStan as data. We'll be thorough and include eve
 we think we'll use in a model.
 
 ```{r stan-data}
-stan_dat_simple <- with(pest_data, list(complaints = complaints,
-                                         traps = traps,
-                                         N = length(traps)))
+stan_dat_simple <- list(
+  N = nrow(pest_data), 
+  complaints = pest_data$complaints,
+  traps = pest_data$traps
+)
 ```
 
 Before we fit the first model we defined above, let's generate some fake data against which to
@@ -123,21 +127,28 @@ Let's compile the fake data generating code in the file simple_NB_poisson_dgp.st
 comp_dgp_simple <- stan_model('stan_programs/simple_poisson_regression_dgp.stan')
 ```
 
-```{r}
-set.seed(1123)
-fake_gen_data <- stan_dat_simple
-fake_gen_data$traps <- rnorm(fake_gen_data$N)
-```
 
 ```{r runpoissondgp}
-fitted_model_dgp <- sampling(comp_dgp_simple, data = fake_gen_data, chains = 1, cores = 1, iter = 1, algorithm='Fixed_param', seed=123)
+fitted_model_dgp <- sampling(
+  comp_dgp_simple,
+  data = list(N = nrow(pest_data), mean_traps = mean(pest_data$traps)),
+  chains = 1,
+  iter = 1,
+  algorithm = 'Fixed_param',
+  seed = 123
+  )
 samps_dgp <- rstan::extract(fitted_model_dgp)
+str(samps_dgp)
 ```
 
 
 ```{r P_fake_stan_dat}
-stan_dat_fake <- fake_gen_data
-stan_dat_fake$complaints <- samps_dgp$y_gen[1,]
+stan_dat_fake <- list(
+  N = nrow(pest_data), 
+  traps = samps_dgp$traps[1, ], 
+  complaints = samps_dgp$complaints[1, ]
+)
+str(stan_dat_fake)
 ```
 
 ```{r compNB, cache=T, results="hide", message=FALSE}
@@ -145,22 +156,21 @@ comp_model_P <- stan_model('stan_programs/simple_poisson_regression.stan')
 ```
 
 ```{r runPoverfake}
-fit_model_P <- sampling(comp_model_P, data = stan_dat_fake, chains = 4, cores = 4)
-samps_P <- rstan::extract(fit_model_P)
-samps_pars <- as.matrix(fit_model_P, pars = c('alpha','beta'))
+fit_model_P <- sampling(comp_model_P, data = stan_dat_fake)
+posterior_alpha_beta <- as.matrix(fit_model_P, pars = c('alpha','beta'))
+head(posterior_alpha_beta)
 ```
 
 ```{r}
-bayesplot::mcmc_recover_hist(samps_pars, c(samps_dgp$alpha,samps_dgp$beta))
+true_alpha_beta <- c(samps_dgp$alpha, samps_dgp$beta)
+mcmc_recover_hist(posterior_alpha_beta, true = true_alpha_beta)
 ```
 
 ```{r marginal_PPC}
-y_rep <- samps_P$pp_y
+y_rep <- as.matrix(fit_model_P, pars = "y_rep")
 mean_y_rep <- colMeans(y_rep)
 std_resid <- (stan_dat_fake$complaints - mean_y_rep) / sqrt(mean_y_rep)
-plot(mean_y_rep, std_resid)
-abline(h=1)
-abline(h=-1)
+qplot(mean_y_rep, std_resid) + hline_at(1) + hline_at(-1)
 ```
 
 ```{r}
@@ -179,18 +189,14 @@ print(fit_P_real_data, pars = c('alpha','beta'))
 Ok price is related to quantity sold, so let's see how well the model fits.
 
 ```{r marginal_PPC}
-samps_P_real_data <- rstan::extract(fit_P_real_data)
-bayesplot::ppc_dens_overlay(stan_dat_simple$complaints, 
-                          samps_P_real_data$pp_y[1:200,])
+y_rep <- as.matrix(fit_P_real_data, pars = "y_rep")
+bayesplot::ppc_dens_overlay(stan_dat_simple$complaints, y_rep[1:200,])
 ```
 
 ```{r marginal_PPC}
-y_rep <- samps_P_real_data$pp_y
 mean_y_rep <- colMeans(y_rep)
 std_resid <- (stan_dat_simple$complaints - mean_y_rep) / sqrt(mean_y_rep)
-plot(mean_y_rep, std_resid)
-abline(h=1)
-abline(h=-1)
+qplot(mean_y_rep, std_resid) + hline_at(1) + hline_at(-1)
 ```
 
 ```{r}
@@ -409,10 +415,10 @@ $$
 stan_dat_hier <- with(pest_data, list(complaints = complaints,
                                        traps = traps,
                                        N = length(traps),
-                                       J = J,
-                                       t = t,
+                                       J = N_buildings,
+                                       t = N_months,
                                        sq_foot = log(total_sq_foot/1e4),
-                                       meta_data = scale(meta_data[,c('live_in_super',
+                                       building_data = scale(building_data[,c('live_in_super',
                                                                 'age_of_building',
                                                                 'average_tenant_age',
                                                                 'monthly_average_rent')]),
