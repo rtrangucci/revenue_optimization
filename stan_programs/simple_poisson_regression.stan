@@ -8,8 +8,11 @@ functions {
 }
 data {
   int<lower=1> N;
-  int complaints[N];
-  vector[N] traps;
+  int<lower=0> complaints[N];
+  int<lower=0> traps[N];
+}
+transformed data {
+  vector[N] traps_num = to_vector(traps);
 }
 parameters {
   real alpha;
@@ -19,11 +22,11 @@ model {
   beta ~ normal(0, 0.5);
   alpha ~ normal(4, 2);
   
-  complaints ~ poisson_log(alpha + beta * traps);
+  complaints ~ poisson_log(alpha + beta * traps_num);
 } 
 generated quantities {
-  vector[N] pp_y;
+  int y_rep[N];
   
   for (n in 1:N) 
-    pp_y[n] = poisson_log_safe_rng(alpha + beta * traps[n]);
+    y_rep[n] = poisson_log_safe_rng(alpha + beta * traps_num[n]);
 }

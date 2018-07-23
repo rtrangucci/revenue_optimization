@@ -1,14 +1,17 @@
 data {
   int<lower=1> N;
-  vector[N] traps;
+  real<lower=0> mean_traps;
 }
 model {
 } 
 generated quantities {
-  vector[N] y_gen;
+  int traps[N];
+  int complaints[N];
   real alpha = normal_rng(4, 2);
   real beta = -fabs(normal_rng(0, 0.5));
   
-  for (n in 1:N) 
-    y_gen[n] = poisson_log_rng(alpha + beta * traps[n]);
+  for (n in 1:N)  {
+    traps[n] = poisson_rng(mean_traps);
+    complaints[n] = poisson_log_rng(alpha + beta * traps[n]);
+  }
 }
