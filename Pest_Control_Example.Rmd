@@ -19,7 +19,7 @@ theme_set(bayesplot::theme_default())
 set.seed(1123) # for R's pseudo-RNGs, not Stan's
 ```
 
-## Problem set-up
+## The problem
 
 LLet's say that you're a data scientist working as an independent contractor. You're contacted by the property manager of a large property network in New York City. They explain that they are having an issue with the number of cockroach complaints that they receive from their buildings. Previously they have offered monthly visits from a pest inspector as a solution to this problem. While this is the default solution of many property managers in NYC, the tennants are rarely home when the inpector visits, and so the manager reasons that this is a relatively expensive solution that is currently not very effective.
 
@@ -32,6 +32,8 @@ The manager wishes to employ your services to help them to optomize the number o
 \end{align*}
 
 As the property manager has complete control over the number of traps set, the random variable contributing to this expectation is the number of complaints given the number of traps. We will model the number of complaints as a function of the number of traps. 
+
+## The data
 
 The data is in a file called $\texttt{building_data_20180723.RDS}$. Let's load the data and see what the structure
 is:
@@ -49,43 +51,26 @@ N_buildings
 We're working with `r N_buildings` buildings. We should first want to learn whether the number of complaints is
 related to number of cockroach traps. 
 
-##Modeling count data 
+## Bayesian workflow
 
-How can we model the number of complaints? We already know some rudimentary information about what we should expect. The number of complaints over a month should be either zero or an integer. The property manager tells us that it is possible but unlikely that number of complaints in a given month is zero. Occasionally there are a very large number of complaints in a single month. A common way of modelling this sort of skewed, single bounded count data is as a Poisson random variable. One concern about modelling the outcome variable as a Poisson is that the data may be over-dispersed, but we'll start with this simple model and build it up slowly.
+Insert steps here
 
-In this case we can see that our outcome variable is overdispersed - that is, the variance is larger than the mean - so we will model this using a negative binomial random variable instead. 
+## Modeling count data : Poisson distribution
 
-We will start with a simple model and build it up slowly. First, we'll define our 
-likelihood to be the negative binomial probability mass function over the number
-of traps placed in the building, denoted below as $\texttt{n_complaints}$.
+How can we model the number of complaints? We already know some rudimentary information about what we should expect. The number of complaints over a month should be either zero or an integer. The property manager tells us that it is possible but unlikely that number of complaints in a given month is zero. Occasionally there are a very large number of complaints in a single month. A common way of modelling this sort of skewed, single bounded count data is as a Poisson random variable. One concern about modelling the outcome variable as a Poisson is that the data may be over-dispersed. How can we address this concern? We'll start with a simple Poisson model and build it up slowly.
+
+### Model 
+
+Given that we have chosen a Poisson regression, we define the likelihood to be the Poisson probability mass function over the number bait stations placed in the building, denoted below as $\texttt{qty_traps}$. This model assumes that the mean and variance of the outcome variable (in this case the number of complaints) is the same.
 
 \begin{align*}
-\texttt{n_complaints}_{m,t} & \sim \text{Neg-Binomial-log}(\eta_{m,t}, \phi) \\
-\eta_{m,t} & = \alpha + \beta \, p_{m,t}
+\texttt{qty_complaints}_{traps} & \sim \text{Poisson}(\lambda_{traps}) \\
+\eta_{traps} & = \alpha + \beta \, x_{traps}
 \end{align*}
+ 
+### Data
 
-The negative binomial mass function we'll use is called 
-$\texttt{neg_binomial_2_log}(\text{ints} \, y, \text{reals} \, \eta, \text{reals} \, \phi)$ in Stan.
-This is negative binomial mass function that is parameterized in terms of its 
-log-mean, $\eta$, and its precision $\phi$. This means that $\mathbb{E}[y] \, = exp(\eta)$ 
-and $\text{Var}[y] = \exp(\eta) + \exp(\eta)^2 / \phi$. 
-
-We can use this distribution for our outcome, n_complaints, because we have integer 
-outcomes (number of movies sold per week). However, this isn't a good enough 
-reason to use the negative binomial distribution. We could use a Poisson
-distribution. However, the Poisson distribution has only one parameter, which requires
-that the mean of the Poisson random variable be equal to the variance of the random
-variable. However, our data appear to be overdispersed. We can check this by
-taking the mean of qty_sld for each movie and comparing it to the variance of
-qty_sld of each movie. We want to do this check because we would assume that if
-the data were generated by a Poisson distribution, each movie would have a
-variance roughly equal to its mean. We probably wouldn't expect this to hold
-across movies because different movies likely have different average sales per
-week.
-
-Let's prep the data. First, because we're concerned about comparing our
-predictions for certain products, and we'd like to do the comparison in Stan, we
-should convert our titles to integers.
+Let's prep the data. Firstly to use the building variable in Stan we will need to trasnform it from a factor variable to an interger variable. 
 
 ```{r prep-data}
 N_months <- max(table(pest_data$building_id))
@@ -100,8 +85,7 @@ building_data <- unique(pest_data[,c('building_idx','live_in_super', 'age_of_bui
   arrange(building_idx) %>% select(-building_idx) %>% as.matrix()
 ```
 
-We create the list to pass into RStan as data. We'll be thorough and include everything
-we think we'll use in a model.
+We will also make a list of the data that we will use for this model as well. 
 
 ```{r stan-data}
 stan_dat_simple <- list(
@@ -110,17 +94,17 @@ stan_dat_simple <- list(
   traps = pest_data$traps
 )
 ```
+### Simulate some data
 
-Before we fit the first model we defined above, let's generate some fake data against which to
-test our Stan program. If we are able to recover known parameter values, it is a good indication
-that our Stan program is working.
+How do we know if our Stan model is working well and if we are able to recover the known parameter values? Before we start fitting our Poisson model to the real data, first let's generate some fake data that matches our assumptions about the data. 
 
-Let's compile the fake data generating code in the file simple_poisson_regression_dgp.stan.
+First we will compile the Stan model (simple_poisson_regression_dgp.stan) that generated the fake data.
 
 ```{r compNBdgp, cache=T, results="hide", message=FALSE}
 comp_dgp_simple <- stan_model('stan_programs/simple_poisson_regression_dgp.stan')
 ```
 
+Next we use this model to sample some data. 
 
 ```{r runpoissondgp}
 fitted_model_dgp <- sampling(
@@ -135,6 +119,7 @@ samps_dgp <- rstan::extract(fitted_model_dgp)
 str(samps_dgp)
 ```
 
+Like before, we need to arrange the data into a list ready to pass to Stan. 
 
 ```{r P_fake_stan_dat}
 stan_dat_fake <- list(
@@ -144,21 +129,31 @@ stan_dat_fake <- list(
 )
 str(stan_dat_fake)
 ```
+### Fit the model to the fake data:
+
+Now we have the simulated data we fit a Stan model using it. First we need to compile the model (simple_poisson_regression.stan).
 
 ```{r compNB, cache=T, results="hide", message=FALSE}
 comp_model_P <- stan_model('stan_programs/simple_poisson_regression.stan')
 ```
+
+Lastly, let's run the model to see if we can recover our simulated parameters. 
 
 ```{r runPoverfake}
 fit_model_P <- sampling(comp_model_P, data = stan_dat_fake)
 posterior_alpha_beta <- as.matrix(fit_model_P, pars = c('alpha','beta'))
 head(posterior_alpha_beta)
 ```
+### Assess parameter recovery
+
+First explore if we can recover the data that we originally simulated from.
 
 ```{r}
 true_alpha_beta <- c(samps_dgp$alpha, samps_dgp$beta)
 mcmc_recover_hist(posterior_alpha_beta, true = true_alpha_beta)
 ```
+
+Then do Posterior Predictive Checks
 
 ```{r marginal_PPC}
 y_rep <- as.matrix(fit_model_P, pars = "y_rep")
@@ -166,63 +161,83 @@ mean_y_rep <- colMeans(y_rep)
 std_resid <- (stan_dat_fake$complaints - mean_y_rep) / sqrt(mean_y_rep)
 qplot(mean_y_rep, std_resid) + hline_at(1) + hline_at(-1)
 ```
+This is a plot of... If the model was fitting well it would look like... As you can see here, we have ... which indicates that ... Finally look at the rootogram. 
 
 ```{r}
 ppc_rootogram(stan_dat_fake$complaints, yrep = y_rep)
 ```
+This is a plot of... If the model was fitting well it would look like... As you can see here, we have ... which indicates that ...
 
 
 ### Fit with real data 
 
+Now we have seen that we can sensibly recover the parameters from simulated data. Next we can use this model with the real data that we observerd. As we have already compiled the model, we can jump straight to sampling from it. 
+
 ```{r fit_P_real_data, cache=T}
 fit_P_real_data <- sampling(comp_model_P, data = stan_dat_simple, chains = 4, cores =4 )
 ```
+and printing the parameters. What do these tell us? 
 
 ```{r results_simple_P}
 print(fit_P_real_data, pars = c('alpha','beta'))
 ```
-
-Ok price is related to quantity sold, so let's see how well the model fits.
+As we expected, it appears the number of bait stations set in a building impacts the number of complaints about cockroaches that were made in the follwoing month. However, we still need to consider how well the model fits. 
 
 ```{r marginal_PPC}
 y_rep <- as.matrix(fit_P_real_data, pars = "y_rep")
 bayesplot::ppc_dens_overlay(stan_dat_simple$complaints, y_rep[1:200,])
 ```
+This is a plot of... If the model was fitting well it would look like... As you can see here, we have ... which indicates that ...
+
 
 ```{r marginal_PPC}
 mean_y_rep <- colMeans(y_rep)
 std_resid <- (stan_dat_simple$complaints - mean_y_rep) / sqrt(mean_y_rep)
 qplot(mean_y_rep, std_resid) + hline_at(1) + hline_at(-1)
 ```
+This is a plot of... If the model was fitting well it would look like... As you can see here, we have ... which indicates that ...
 
 ```{r}
 ppc_rootogram(stan_dat_simple$complaints, yrep = y_rep)
 ```
+This is a plot of... If the model was fitting well it would look like... As you can see here, we have ... which indicates that ...
 
 ### Is there more info we can use?
 
-Maybe there're some good information that we're not using, like the
-square footage of the building?
+Modeling the relationship between complaints and bait stations is the simplest model. However, the manager has told us that they expect there are a number of other reasons that one building might have more roach complaints than another. 
+
+#### Data
+
+A quick test shows us that there appears to be a relationship between the square footage of the building and the number of complaints received. 
 
 ```{r}
 sq_foot_dat_lm <- lm(log1p(complaints) ~ total_sq_foot, data = pest_data)
 with(pest_data, plot(total_sq_foot, log1p(complaints)))
 abline(reg = sq_foot_dat_lm)
 ```
-
+Using the property manager's intuition, we include two extra peices of information we know about the building - the square floor space and whether there is a live in super or not - into both the simulated and real data. 
+ 
 ```{r}
 stan_dat_simple$sq_foot <- log(pest_data$total_sq_foot/1e4)
 stan_dat_simple$live_in_super <- pest_data$live_in_super
 ```
+
+<!-- [Note to Jonah/Rob: Does this need to be here if we generate new fake data below? -->
 
 ```{r}
 stan_dat_fake$sq_foot <- rnorm(stan_dat_fake$N)
 stan_dat_fake$live_in_super <- rnorm(stan_dat_fake$N)
 ```
 
+####Model
+
+Now we need a new Stan model that uses multiple predictors. Firs we have to compile multiple_poisson_regression_dgp.stan.
+
 ```{r compmultPDGP, cache=T, results="hide", message=FALSE}
 comp_dgp_multiple <- stan_model('stan_programs/multiple_poisson_regression_dgp.stan')
 ```
+
+Then we generate some fake data from this model. 
 
 ```{r runpoissondgp}
 fitted_model_dgp <-
@@ -238,6 +253,8 @@ fitted_model_dgp <-
 samps_dgp <- rstan::extract(fitted_model_dgp)
 ```
 
+Now pop that data into a list ready for Stan. 
+
 ```{r P_fake_stan_dat}
 stan_dat_fake <- list(
   N = nrow(pest_data), 
@@ -248,19 +265,27 @@ stan_dat_fake <- list(
 )
 ```
 
+And compile the model to fit this data with. 
+
 ```{r compNB, cache=T, results="hide", message=FALSE}
 comp_model_P_mult <- stan_model('stan_programs/multiple_poisson_regression.stan')
 ```
+
+Fit the data with the model, and extract the alpha and beta parameters. 
 
 ```{r runPoverfake}
 fit_model_P_mult <- sampling(comp_model_P_mult, data = stan_dat_fake, chains = 4, cores = 4)
 posterior_alpha_beta <- as.matrix(fit_model_P_mult, pars = c('alpha','beta','beta_super','beta_sq_foot'))
 ```
+Then compare these parameters to the true parameters
 
 ```{r}
 true_alpha_beta <- c(samps_dgp$alpha,samps_dgp$beta,samps_dgp$beta_super,samps_dgp$beta_sq_foot)
 bayesplot::mcmc_recover_hist(posterior_alpha_beta, true = true_alpha_beta)
 ```
+This is a plot of... If the model was fitting well it would look like... As you can see here, we have ... which indicates that ...
+
+### Fit the real data
 
 Now let's fit to real data.
 
@@ -269,24 +294,34 @@ Now let's fit to real data.
 <!-- we can do that here, but I didn't broach it because it'll take some work to build a model that fits poorly -->
 <!-- but not egregiously so, in order to not get treedepth warnings] -->
 
+First fit the real data with the model.
+
 ```{r fit_mult_P_real_dat}
 fit_model_P_mult_real <- sampling(comp_model_P_mult, data = stan_dat_simple, cores = 4, chains = 4)
 ```
+Then explore the fit. 
 
 ```{r marginal_PPC}
 y_rep <- as.matrix(fit_model_P_mult_real, pars = "y_rep")
 bayesplot::ppc_dens_overlay(stan_dat_simple$complaints, y_rep[1:200,])
 ```
+This is a plot of... If the model was fitting well it would look like... As you can see here, we have ... which indicates that ...
 
 ```{r marginal_PPC}
 mean_y_rep <- colMeans(y_rep)
 std_resid <- (stan_dat_simple$complaints - mean_y_rep) / sqrt(mean_y_rep)
 qplot(mean_y_rep, std_resid) + hline_at(1) + hline_at(-1)
 ```
+This is a plot of... If the model was fitting well it would look like... As you can see here, we have ... which indicates that ...
+
 
 ```{r}
 ppc_rootogram(stan_dat_simple$complaints, yrep = y_rep)
 ```
+This is a plot of... If the model was fitting well it would look like... As you can see here, we have ... which indicates that ...
+
+## Modeling count data : Negative Binomial outcome
+
 
 We'll start with a simple model and build it up slowly. First, we'll define our 
 likelihood to be the negative binomial probability mass function over the number
