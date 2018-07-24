@@ -37,10 +37,10 @@ model {
                                + beta_sq_foot * sq_foot, prec);
 } 
 generated quantities {
-  vector[N] pp_y;
+  int y_rep[N];
   
   for (n in 1:N) 
-    pp_y[n] = neg_binomial_2_log_rng(alpha + beta * traps[n] + beta_super * live_in_super[n]
+    y_rep[n] = neg_binomial_2_log_rng(alpha + beta * traps[n] + beta_super * live_in_super[n]
                                        + beta_sq_foot * sq_foot[n], prec);
   
 }
