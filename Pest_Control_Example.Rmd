@@ -352,21 +352,36 @@ across movies because different movies likely have different average sales per
 week.
 
 ```{r compNBdgp, cache=T, results="hide", message=FALSE}
-comp_dgp_mult_NB <- stan_model('stan_programs/multiple_NB_regression_dgp.stan')
+comp_dgp_multiple_NB <- stan_model('stan_programs/multiple_NB_regression_dgp.stan')
 ```
 
 We're going to generate one draw from the fake data model so we can use the data to fit our
 model and compare the known values of the parameters to the posterior density of the parameters.
 
-```{r runNBdgp}
-fitted_model_dgp <- sampling(comp_dgp_mult_NB, data = stan_dat_fake, chains = 1, cores = 1, iter = 1, algorithm='Fixed_param',seed=1796604581)
-samps_dgp <- rstan::extract(fitted_model_dgp)
+```{r fake_data_dgp_NB}
+fitted_model_dgp_NB <-
+  sampling(
+  comp_dgp_multiple_NB,
+  data = list(N = nrow(pest_data)),
+  chains = 1,
+  cores = 1,
+  iter = 1,
+  algorithm = 'Fixed_param',
+  seed = 123
+  )
+samps_dgp_NB <- rstan::extract(fitted_model_dgp_NB)
 ```
 
 We create a new dataset with the fake outcome data replacing the true observed outcomes.
 
-```{r fake_stan_dat}
-stan_dat_fake$complaints <- samps_dgp$y_gen[1,]
+```{r NB_fake_stan_dat}
+stan_dat_fake_NB <- list(
+  N = nrow(pest_data), 
+  sq_foot = samps_dgp_NB$sq_foot[1, ],
+  live_in_super = samps_dgp_NB$live_in_super[1, ],
+  traps = samps_dgp_NB$traps[1, ], 
+  complaints = samps_dgp_NB$complaints[1, ]
+)
 ```
 
 ```{r compNB, cache=T, results="hide", message=FALSE}
@@ -378,16 +393,19 @@ examine posterior predictive checks and to check whether we've sufficiently
 recovered our known parameters, $\texttt{alpha}$ $\texttt{beta}$.
 
 ```{r runNBoverfake}
-fitted_model_NB <- sampling(comp_model_NB, data = stan_dat_fake, chains = 4, cores = 4)
-samps_NB <- rstan::extract(fitted_model_NB)
-samps_pars <- as.matrix(fitted_model_NB, pars = c('alpha','beta','beta_super','beta_sq_foot','inv_prec'))
+fitted_model_NB <- sampling(comp_model_NB, data = stan_dat_fake_NB, chains = 4, cores = 4)
+posterior_alpha_beta_NB <- as.matrix(fitted_model_NB, pars = c('alpha','beta','beta_super','beta_sq_foot','inv_prec'))
 ```
 
 ```{r}
-bayesplot::mcmc_recover_intervals(samps_pars, 
-                              c(samps_dgp$alpha,
-                                samps_dgp$beta,
-                                samps_dgp$beta_super,samps_dgp$beta_sq_foot,samps_dgp$inv_prec))
+true_alpha_beta_NB <- 
+  c(samps_dgp_NB$alpha,
+    samps_dgp_NB$beta,
+    samps_dgp_NB$beta_super,
+    samps_dgp_NB$beta_sq_foot,
+    samps_dgp_NB$inv_prec
+  )
+bayesplot::mcmc_recover_hist(posterior_alpha_beta_NB, true = true_alpha_beta_NB)
 ```
 
 The parameter recovery looks good. Let's run the model over the real data and see
@@ -644,12 +662,18 @@ bayesplot::ppc_stat_grouped(stan_dat_simple$qty_sld,
 We might be missing information in month indicators. It makes sense, when it gets colder
 out there might be more of an incentive to watch movies (at least in the Northeast).
 
+```{r}
+stan_dat_hier$mo_idx <- as.integer(as.factor(pest_data$date))
+stan_dat_hier$M <- max(stan_dat_hier$mo_idx)
+```
+
 ```{r comp-NB-hier-mos, cache=T, results="hide", message=FALSE}
-comp_model_NB_hier_mos <- stan_model('hier_slopes_NB_regression_mos.stan')
+comp_model_NB_hier_mos <- stan_model('stan_programs/hier_NB_regression_ncp_slopes_mod_mos.stan')
 ```
 
 ```{r run-NB-hier-slopes-mos}
-fitted_model_NB_hier_mos <- sampling(comp_model_NB_hier_mos, data = stan_dat_simple, chains = 4, cores = 4)
+stan_dat_hier$meta_data <- stan_dat_hier$building_data
+fitted_model_NB_hier_mos <- sampling(comp_model_NB_hier_mos, data = stan_dat_hier, chains = 4, cores = 4)
 ```
 
 We get divergent transitions in our run. Let's reparameterize our prior on the $\texttt{mos}$ random
@@ -695,12 +719,12 @@ last week of data.
 We want to predict quantity at each price, and then calculate revenue for each price.
 
 ```{r comp-rev, cache=T, results="hide", message=FALSE}
-comp_rev <- stan_model('hier_slopes_NB_regression_mos_predict.stan')
+stan_dat_hier$sq_foot_pred <- log(unique(building_data[,'total_sq_foot'])/1e4)
+comp_rev <- stan_model('stan_programs/hier_NB_regression_ncp_slopes_mod_mos_predict.stan')
 ```
 
 ```{r run-NB-hier-rev, cache=TRUE}
-rev_model <- sampling(comp_rev, data = stan_dat_simple, chains = 4, cores = 4, iter = 2000,
-                      control = list(adapt_delta = 0.90))
+rev_model <- sampling(comp_rev, data = stan_dat_hier, chains = 4, cores = 4, iter = 2000)
 samps_rev <- rstan::extract(rev_model)
 ```
 
@@ -710,27 +734,29 @@ each product. This is immensely useful as a decision maker when choosing how to 
 for these products.
 
 ```{r rev-curves}
-N_price <- 20
-movie_map <- unique(movie_data[,c('title','ttl_idx')])
-mean_rev <- apply(samps_rev$hypo_rev,c(2,3),mean)
-lower_rev <- apply(samps_rev$hypo_rev,c(2,3),quantile,0.25)
-upper_rev <- apply(samps_rev$hypo_rev,c(2,3),quantile,0.75)
-mean_qty <- apply(samps_rev$hypo_qty_sld,c(2,3),mean)
-lower_qty <- apply(samps_rev$hypo_qty_sld,c(2,3),quantile,0.25)
-upper_qty <- apply(samps_rev$hypo_qty_sld,c(2,3),quantile,0.75)
+N_traps <- 20
+costs <- 20*(1:N_traps) + (1:N_traps < 5)*20 + (1:N_traps >= 5 & 1:N_traps < 10)*50 + (1:N_traps >= 10 & 1:N_traps < 15)*80 +  + (1:N_traps >= 15) * 110
+tot_profit <- sweep(samps_rev$pp_rev,c(3),STATS = costs, FUN = '-')
+mean_rev <- apply(tot_profit,c(2,3),median)
+lower_rev <- apply(tot_profit,c(2,3),quantile,0.25)
+upper_rev <- apply(tot_profit,c(2,3),quantile,0.75)
+mean_complaints <- apply(samps_rev$pp_y,c(2,3),mean)
+lower_complaints <- apply(samps_rev$pp_y,c(2,3),quantile,0.25)
+upper_complaints <- apply(samps_rev$pp_y,c(2,3),quantile,0.75)
 rev_df <- data.frame(rev = as.vector(t(mean_rev)), lower = as.vector(t(lower_rev)),
                      upper = as.vector(t(upper_rev)),
-                     price = rep(1:N_price,N_titles),
-                     ttl_idx = as.vector(sapply(1:N_titles,rep,N_price)),
-                     qty = as.vector(t(mean_qty)),
-                     lower_qty = as.vector(t(lower_qty)),
-                     upper_qty = as.vector(t(upper_qty)))
-rev_df <- rev_df %>% left_join(movie_map, by = 'ttl_idx')
-betas <- order(colMeans(samps_rev$betas))[c(1:5, (N_titles - 4):N_titles)]
-sub_df <- rev_df %>% filter(ttl_idx %in% betas)
-ggplot(data = sub_df, aes(x = price, y = rev)) +
+                     traps = rep(1:N_traps,N_buildings),
+                     building_id = as.vector(sapply(1:N_buildings,rep,N_traps)))
+                     # qty = as.vector(t(mean_qty)),
+                     # lower_qty = as.vector(t(lower_qty)),
+                     # upper_qty = as.vector(t(upper_qty)))
+#rev_df <- rev_df %>% left_join(movie_map, by = 'ttl_idx')
+#betas <- order(colMeans(samps_rev$betas))[c(1:5, (N_titles - 4):N_titles)]
+#sub_df <- rev_df %>% filter(ttl_idx %in% betas)
+ggplot(data = rev_df, aes(x = traps, y = rev)) +
   geom_ribbon(aes(ymin = lower, ymax = upper), fill="grey70") + geom_line() +
-  facet_wrap(~ title, scales = 'free_y')
+#  geom_line() + 
+  facet_wrap(~ building_id, scales = 'free_y')
 ```
 
 Perhaps we'd also like to see the demand curves for each product. Below we've 
