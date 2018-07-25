@@ -21,16 +21,16 @@ parameters {
   real<upper=0> beta;
   real beta_sq_foot;
   real beta_super;
-  real<lower=0> inv_prec;
+ real<lower=0> inv_prec;
 }
 transformed parameters {
   real prec = inv(inv_prec);
 }
 model {
   beta ~ normal(0, 0.5);
-  alpha ~ normal(0, 10);
-  beta_super ~ normal(1, 0.5);
-  beta_sq_foot ~ normal(1, 0.5);
+  alpha ~ normal(0, 1);
+  beta_super ~ normal(0, 1);
+  beta_sq_foot ~ normal(0, 1);
   inv_prec ~ normal(0, 1);
   
   complaints ~ neg_binomial_2_log(alpha + beta * traps + beta_super * live_in_super

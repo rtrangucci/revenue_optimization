@@ -52,19 +52,27 @@ gen_data <- function(N_buildings, N_wks, obs_noise = 20, seed=123) {
     p_series <- zoo::na.locf(p_series)
     building_traps <- c(building_traps, p_series)
   }
-  building_attr_beta <- scale(building_data[1:N_buildings,c('live_in_super','age_of_building')])
-  building_attr_alpha <- scale(building_data[1:N_buildings,c('live_in_super','age_of_building','monthly_average_rent',
-                                                             'average_tenant_age')])
-  overall_mu <- log(0.5)
+  building_attr <- scale(building_data[1:N_buildings,c('live_in_super','age_of_building',
+                                                             'monthly_average_rent',
+                                                             'average_tenant_age')],scale=F)
+  building_attr <- sweep(building_attr,MARGIN = 2, STATS = c(1,10,1e3,10),FUN='/')
+  # Add AR 1
+  mo_1 <- rnorm(1) * 0.15 - 0.2
+  ar_coef <- 0.95
+  wk_noise <- rep(NA_real_,N_wks)
+  wk_noise[1] <- mo_1
+  for (n in 2:N_wks) {
+    wk_noise[n] = wk_noise[n-1] * ar_coef + rnorm(1) * 0.15
+  }
+  overall_mu <- log(2.5)
   sd_alpha <- 0.05
   overall_beta <- 0.75
   sd_beta <- 0.05
-  gamma <- c(-0.15,0.15)
+  gamma <- c(0.15,-0.15,0,0)
   alphas <- (overall_mu + sd_alpha * rnorm(N_buildings)) + log(building_data$total_sq_foot/1e4) + 
-    building_attr_alpha %*% c(log(0.5),log(0.9),log(0.8),log(0.8))
-  betas <- -exp(overall_beta + building_attr_beta %*% gamma + sd_beta * rnorm(N_buildings))/10
-  wk_noise <- rnorm(N_wks) * 0.05
-  mus <- alphas[building_inds] + betas[building_inds] * (building_traps - mean(building_traps)) + wk_noise[wk_inds]
+    building_attr %*% c(log(0.75),log(0.6),log(0.9),log(0.8))
+  betas <- -exp(overall_beta + building_attr %*% gamma + sd_beta * rnorm(N_buildings))/10
+  mus <- alphas[building_inds] + betas[building_inds] * building_traps + wk_noise[wk_inds]
   df_pred <- data.frame(mus = mus, building_id = building_inds, wk_ind = wk_inds, date = dates[wk_inds], trap = building_traps)
   df_pred <- df_pred %>% left_join(building_data, by = 'building_id') %>%
     mutate(month = lubridate::month(date))
@@ -78,13 +86,16 @@ gen_data <- function(N_buildings, N_wks, obs_noise = 20, seed=123) {
   return(list(df = df_ret,
               df_pred = df_pred,
               betas = betas,
-              alphas = alphas)) 
+              alphas = alphas,
+              ar = wk_noise)) 
 }
 
 #set.seed(12)
-df_test <- gen_data(10, 12, obs_noise = 4, seed=12)
-hist(df_test$df$complaints)
+df_test <- gen_data(10, 12, obs_noise = 2, seed=123)
+hist(df_test$alphas)
 hist(df_test$betas)
+plot(df_test$ar,type='l')
+
 #hist(df_test$alphas)
 df_test_2 <- gen_data(100, 50, obs_noise = 12, seed=12)
 df <- df_test_2$df
@@ -92,4 +103,4 @@ df %>% mutate(idx = as.integer(as.factor(title)), opt_price = -1/df_test_2$betas
 unique(df_mod[,c('title','opt_price')])
 summary(df$units_sold)
 with(dplyr::filter(df_test$df, building_id == 1), plot(date, complaints, type = 'l'))
-saveRDS(rename(df_test$df,traps=trap), 'data/building_data_20180723.RDS')
+saveRDS(rename(df_test$df,traps=trap), 'data/building_data_20180724.RDS')

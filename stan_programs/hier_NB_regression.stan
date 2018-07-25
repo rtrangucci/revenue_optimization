@@ -16,7 +16,7 @@ data {
   vector[N] traps;
   int<lower=1> J;
   int<lower=1, upper=J> building_idx[N];
-  matrix[J,K] meta_data;
+  matrix[J,K] building_data;
   vector[N] sq_foot;
 }
 parameters {
@@ -33,7 +33,7 @@ transformed parameters {
 model {
   beta ~ normal(0, 1);
   zeta ~ normal(0, 1);
-  alphas ~ normal(alpha + meta_data * zeta, sigma_alpha);
+  alphas ~ normal(alpha + building_data * zeta, sigma_alpha);
   sigma_alpha ~ normal(0, 1);
   alpha ~ normal(0, 1);
   inv_prec ~ normal(0, 1);
@@ -43,10 +43,10 @@ model {
                                prec);
 } 
 generated quantities {
-  vector[N] pp_y;
+  int y_rep[N];
   
   for (n in 1:N) 
-    pp_y[n] = neg_binomial_2_log_safe_rng(alphas[building_idx[n]] + beta * traps[n]
+    y_rep[n] = neg_binomial_2_log_safe_rng(alphas[building_idx[n]] + beta * traps[n]
                                           + sq_foot[n],
                                           prec);
 }

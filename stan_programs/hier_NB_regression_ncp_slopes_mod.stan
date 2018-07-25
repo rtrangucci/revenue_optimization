@@ -16,7 +16,7 @@ data {
   vector[N] traps;
   int<lower=1> J;
   int<lower=1, upper=J> building_idx[N];
-  matrix[J,K] meta_data;
+  matrix[J,K] building_data;
   vector[N] sq_foot;
 }
 parameters {
@@ -31,8 +31,8 @@ parameters {
   vector[K] gamma;
 }
 transformed parameters {
-  vector[J] alphas = alpha + meta_data * zeta + sigma_alpha * std_alphas;
-  vector[J] betas = beta + meta_data * gamma + sigma_beta * std_betas;
+  vector[J] alphas = alpha + building_data * zeta + sigma_alpha * std_alphas;
+  vector[J] betas = beta + building_data * gamma + sigma_beta * std_betas;
   real prec = inv(inv_prec);
 }
 model {
@@ -51,10 +51,10 @@ model {
                                prec);
 } 
 generated quantities {
-  vector[N] pp_y;
+  int y_rep[N];
   
   for (n in 1:N) 
-    pp_y[n] = neg_binomial_2_log_safe_rng(alphas[building_idx[n]] + betas[building_idx[n]] * traps[n]
+    y_rep[n] = neg_binomial_2_log_safe_rng(alphas[building_idx[n]] + betas[building_idx[n]] * traps[n]
                                           + sq_foot[n],
                                           prec);
 }
