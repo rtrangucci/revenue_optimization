@@ -161,6 +161,9 @@ Lastly, let's run the model to see if we can recover our simulated parameters.
 
 ```{r runPoverfake}
 fit_model_P <- sampling(comp_model_P, data = stan_dat_fake)
+
+# see http://mc-stan.org/rstan/articles/stanfit_objects.html for various
+# ways of extracting the contents of the stanfit object
 posterior_alpha_beta <- as.matrix(fit_model_P, pars = c('alpha','beta'))
 head(posterior_alpha_beta)
 ```
@@ -551,8 +554,11 @@ the random intercept $\alpha_b$, which is distributed:
 \end{align*}
 
 ```{r}
-bayesplot::mcmc_trace(as.array(fitted_model_NB_hier,pars = 'sigma_alpha'), 
-                      np = nuts_params(fitted_model_NB_hier))
+# use as.array to keep the markov chains separate for trace plots
+mcmc_trace(
+  as.array(fitted_model_NB_hier,pars = 'sigma_alpha'), 
+  np = nuts_params(fitted_model_NB_hier)
+)
 ```
 
 ```{r}
@@ -703,18 +709,16 @@ fitted_model_NB_hier_slopes <-
     data = stan_dat_hier,
     chains = 4, cores = 4
   )
-samps_NB_hier_slopes <- 
-  rstan::extract(
-    fitted_model_NB_hier_slopes,
-    pars = c('y_rep','inv_prec','sigma_beta')
-  )
 ```
 
-To see if the model infers building-to-building differences in , we can plot a histogram of our marginal
+To see if the model infers building-to-building differences in, we can plot a histogram of our marginal
 posterior distribution for $\texttt{sigma_beta}$. 
 
 ```{r}
-hist(samps_NB_hier_slopes$sigma_beta,breaks=50)
+mcmc_hist(
+  as.matrix(fitted_model_NB_hier_slopes, pars = "sigma_beta"), 
+  binwidth = 0.005
+)
 ```
 
 While the model can't specifically rule out zero from the posterior, it does have mass at small
@@ -722,9 +726,11 @@ non-zero numbers, so we should leave in the hierarchy over $\texttt{betas}$. Plo
 data density again, we can see the model still looks well calibrated.
 
 ```{r ppc-full-hier-slopes}
-y_rep <- samps_NB_hier_slopes$y_rep
-bayesplot::ppc_dens_overlay(stan_dat_hier$complaints, 
-                            y_rep[1:200,])
+y_rep <- as.matrix(fitted_model_NB_hier_slopes, pars = "y_rep")
+ppc_dens_overlay(
+  y = stan_dat_hier$complaints, 
+  yrep = y_rep[1:200,]
+)
 ```
 
 [It might be interesting to do more investingation of the model, but I haven't added this yet]
@@ -737,8 +743,12 @@ We haven't looked at how cockroach complaints change over time. Let's look
 at whether there's any pattern over time.
 
 ```{r ppc-group_max-hier-slopes-mean-by-mo}
-bayesplot::ppc_stat_grouped(stan_dat_hier$complaints, 
-                            samps_NB_hier_slopes$y_rep[1:200,], group = stan_dat_hier$mo_idx, stat = 'mean')
+ppc_stat_grouped(
+  y = stan_dat_hier$complaints, 
+  yrep = y_rep, 
+  group = stan_dat_hier$mo_idx, 
+  stat = 'mean'
+) + xlim(0, 9)
 ```
 
 There's definitely some pattern that we're not capturing. See October and May and June for examples.
@@ -772,19 +782,25 @@ comp_model_NB_hier_mos <- stan_model('stan_programs/hier_NB_regression_ncp_slope
 fitted_model_NB_hier_mos <- sampling(comp_model_NB_hier_mos, data = stan_dat_hier, chains = 4, cores = 4)
 ```
 
-```{r}
-samps_NB_hier_mos <- rstan::extract(fitted_model_NB_hier_mos)
-```
+
 In the interest of brevity, we won't go on expanding the model. 
 
 ```{r ppc-full-hier-mos}
-bayesplot::ppc_dens_overlay(stan_dat_hier$complaints, 
-                            samps_NB_hier_mos$y_rep[1:200,])
+y_rep <- as.matrix(fitted_model_NB_hier_mos, pars = "y_rep")
+bayesplot::ppc_dens_overlay(
+  y = stan_dat_hier$complaints, 
+  yrep = y_rep[1:200,]
+)
 ```
 
+
 ```{r}
-bayesplot::ppc_stat_grouped(stan_dat_hier$complaints, 
-                            samps_NB_hier_mos$y_rep[1:200,], group = stan_dat_hier$mo_idx, stat = 'mean')
+ppc_stat_grouped(
+  y = stan_dat_hier$complaints, 
+  yrep = y_rep, 
+  group = stan_dat_hier$mo_idx, 
+  stat = 'mean'
+) + xlim(0, 10)
 ```
 
 As we can see, it appears that our monthly random intercept has captured a monthly
@@ -803,7 +819,6 @@ comp_rev <- stan_model('stan_programs/hier_NB_regression_ncp_slopes_mod_mos_pred
 stan_dat_hier$sq_foot_pred <- log(unique(pest_data$total_sq_foot)/1e4)
 stan_dat_hier$M_forward <- 12
 rev_model <- sampling(comp_rev, data = stan_dat_hier, chains = 4, cores = 4, iter = 2000)
-samps_rev <- rstan::extract(rev_model)
 ```
 
 Below we've generated our revenue curves for the 10 buildings. These charts will give us 
@@ -811,6 +826,9 @@ precise quantification of our uncertainty around our revenue projections at any 
 each building. 
 
 ```{r rev-curves}
+# extract as a list for convenience below
+samps_rev <- rstan::extract(rev_model)
+
 N_traps <- 20
 costs <- 20*(1:N_traps) + (1:N_traps < 5)*20 + (1:N_traps >= 5 & 1:N_traps < 10)*50 + (1:N_traps >= 10 & 1:N_traps < 15)*80 +  + (1:N_traps >= 15) * 110
 tot_profit <- sweep(samps_rev$rev_rep_potential,c(3),STATS = costs, FUN = '-')
