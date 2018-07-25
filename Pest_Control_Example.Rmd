@@ -7,6 +7,8 @@ output:
   html_document: default
 ---
 
+## Setup
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(rstan)
@@ -16,7 +18,9 @@ library(bayesplot)
 library(ggplot2)
 
 theme_set(bayesplot::theme_default())
-set.seed(1123) # for R's pseudo-RNGs, not Stan's
+
+# for R's pseudo-RNGs, not Stan's
+set.seed(1123) 
 ```
 
 ## The problem
@@ -109,6 +113,7 @@ stan_dat_simple <- list(
   traps = pest_data$traps
 )
 ```
+
 ### Simulate some data
 
 How do we know if our Stan model is working well and if we are able to recover the known parameter values? Before we start fitting our Poisson model to the real data, first let's generate some fake data that matches our assumptions about the data. 
@@ -159,6 +164,7 @@ fit_model_P <- sampling(comp_model_P, data = stan_dat_fake)
 posterior_alpha_beta <- as.matrix(fit_model_P, pars = c('alpha','beta'))
 head(posterior_alpha_beta)
 ```
+
 ### Assess parameter recovery
 
 First explore if we can recover the data that we originally simulated from.
@@ -480,8 +486,12 @@ The rootgram looks much better, but we should try look at the data along other
 axes to see if there's more information we can use to build our model.
 
 ```{r ppc-group_means}
-bayesplot::ppc_stat_grouped(stan_dat_simple$complaints, 
-                            y_rep[1:200,], group = pest_data$building_idx, stat = 'mean')
+bayesplot::ppc_stat_grouped(
+  stan_dat_simple$complaints, 
+  y_rep[1:200,], 
+  group = pest_data$building_idx, 
+  stat = 'mean'
+)
 ```
 
 
@@ -546,21 +556,24 @@ bayesplot::mcmc_trace(as.array(fitted_model_NB_hier,pars = 'sigma_alpha'),
 ```
 
 ```{r}
-mcmc_scatter(
+# assign to object so we can compare to another plot later
+scatter_with_divs <- mcmc_scatter(
   as.array(fitted_model_NB_hier),
   pars = c("alphas[4]", 'sigma_alpha'), 
   transform = list('sigma_alpha' = "log"), 
   np = nuts_params(fitted_model_NB_hier)
 )
+scatter_with_divs
 ```
 
 What we have here is a funnel, which Stan can't handle because...
 
 ```{r}
-mcmc_parcoord(
+parcoord_with_divs <- mcmc_parcoord(
   as.array(fitted_model_NB_hier, pars = c("sigma_alpha", "alphas")),
   np = nuts_params(fitted_model_NB_hier)
 )
+parcoord_with_divs
 ```
 
 Again, we see evidence that our problems concentrate when $\texttt{sigma_alpha}$ is small
@@ -604,6 +617,26 @@ print(fitted_model_NB_hier_ncp, pars = c('sigma_alpha','beta','alpha','prec','al
 This has improved the effective sample sizes of $\texttt{alphas}$. We extract
 the parameters to run our usual posterior predictive checks.
 
+```{r}
+scatter_no_divs <- mcmc_scatter(
+  as.array(fitted_model_NB_hier_ncp),
+  pars = c("alphas[4]", 'sigma_alpha'), 
+  transform = list('sigma_alpha' = "log"), 
+  np = nuts_params(fitted_model_NB_hier_ncp)
+)
+bayesplot_grid(scatter_with_divs, scatter_no_divs, 
+               grid_args = list(ncol = 2), ylim = c(-11, -0.5))
+```
+
+```{r}
+parcoord_no_divs <- mcmc_parcoord(
+  as.array(fitted_model_NB_hier_ncp, pars = c("sigma_alpha", "alphas")),
+  np = nuts_params(fitted_model_NB_hier_ncp)
+)
+bayesplot_grid(parcoord_with_divs, parcoord_no_divs, 
+               ylim = c(-3, 3))
+```
+
 ```{r samps-full-hier}
 samps_NB_hier_ncp <- rstan::extract(fitted_model_NB_hier_ncp, pars = c('y_rep','inv_prec'))
 ```
@@ -611,9 +644,8 @@ samps_NB_hier_ncp <- rstan::extract(fitted_model_NB_hier_ncp, pars = c('y_rep','
 The marginal plot, again.
 
 ```{r ppc-full-hier}
-y_rep <- samps_NB_hier_ncp$y_rep
-bayesplot::ppc_dens_overlay(stan_dat_hier$complaints, 
-                          y_rep[1:200,])
+y_rep <- as.matrix(fitted_model_NB_hier_ncp, pars = "y_rep")
+ppc_dens_overlay(stan_dat_hier$complaints, y_rep[1:200,])
 ```
 
 This looks quite nice. If we've captured the building-level means well, then the
@@ -621,8 +653,12 @@ posterior distribution of means by building should match well with the observed
 means of the quantity of building complaints by month.
 
 ```{r ppc-group_means-hier}
-bayesplot::ppc_stat_grouped(stan_dat_hier$complaints, 
-                            y_rep[1:200,], group = stan_dat_hier$building_idx, stat = 'mean')
+ppc_stat_grouped(
+  y = stan_dat_hier$complaints, 
+  yrep = y_rep,
+  group = stan_dat_hier$building_idx, 
+  stat = 'mean'
+)
 ```
 
 The building means appear to be well-captured by our model.
@@ -630,7 +666,7 @@ The building means appear to be well-captured by our model.
 
 ```{r}
 mean_y_rep <- colMeans(y_rep)
-mean_inv_prec <- mean(samps_NB_hier_ncp$inv_prec)
+mean_inv_prec <- mean(as.matrix(fitted_model_NB_hier_ncp, pars = "inv_prec"))
 std_resid <- (stan_dat_hier$complaints - mean_y_rep) / sqrt(mean_y_rep + mean_y_rep^2*mean_inv_prec)
 qplot(mean_y_rep, std_resid) + hline_at(1) + hline_at(-1)
 ```
