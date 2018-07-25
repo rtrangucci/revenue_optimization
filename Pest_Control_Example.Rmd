@@ -709,11 +709,24 @@ There's definitely some pattern that we're not capturing. See October and May an
 If we think about the sort of prior we want to use for this parameter, we might settle on
 an autoregressive prior.
 
-[This doesn't quite come out from any residuals because we have so few weeks, we could 
+[This doesn't quite come out from any residuals because we have so few weeks of data]
 
 We might be missing information in month indicators. It makes sense, when it gets colder
 out there might be less trash in the streets, which could mean fewer cockroaches are out
 and about rooting through the trash and ending up in our buildings.
+
+This can be a motivation for using an autoregressive prior for our monthly effects. The model
+is as follows:
+
+$$
+\texttt{mo}_t \sim \text{Normal}(\phi \, \texttt{mo}_{t-1}, \sigma_\texttt{mo}) \\
+\phi \in [0,1]
+$$
+While we could allow $\phi \in [-1,1]$, we almost never see $\phi < 0$ in social science
+applications. We could relax this assumption and use priors to enforce our beliefs
+
+[Note to L/J: we should probably just use priors to encode our
+beliefs about positive autocorrelation this upon second thought]
 
 ```{r comp-NB-hier-mos, cache=T, results="hide", message=FALSE}
 comp_model_NB_hier_mos <- stan_model('stan_programs/hier_NB_regression_ncp_slopes_mod_mos.stan')
@@ -757,10 +770,9 @@ rev_model <- sampling(comp_rev, data = stan_dat_hier, chains = 4, cores = 4, ite
 samps_rev <- rstan::extract(rev_model)
 ```
 
-Below we've generated our revenue curves for the first 10 products. These charts will give us 
-precise quantification of our uncertainty around our revenue projections at any price for
-each product. This is immensely useful as a decision maker when choosing how to set prices
-for these products.
+Below we've generated our revenue curves for the 10 buildings. These charts will give us 
+precise quantification of our uncertainty around our revenue projections at any number of traps for
+each building. 
 
 ```{r rev-curves}
 N_traps <- 20
@@ -776,7 +788,6 @@ profit_df <- data.frame(profit = as.vector(t(mean_profit)), lower = as.vector(t(
                      # qty = as.vector(t(mean_qty)),
                      # lower_qty = as.vector(t(lower_qty)),
                      # upper_qty = as.vector(t(upper_qty)))
-#rev_df <- rev_df %>% left_join(movie_map, by = 'ttl_idx')
 #betas <- order(colMeans(samps_rev$betas))[c(1:5, (N_titles - 4):N_titles)]
 #sub_df <- rev_df %>% filter(ttl_idx %in% betas)
 ggplot(data = profit_df, aes(x = traps, y = profit)) +
