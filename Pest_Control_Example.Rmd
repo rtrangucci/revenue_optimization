@@ -65,13 +65,27 @@ How can we model the number of complaints? We already know some rudimentary info
 
 ### Model 
 
-Given that we have chosen a Poisson regression, we define the likelihood to be the Poisson probability mass function over the number bait stations placed in the building, denoted below as $\texttt{qty_traps}$. This model assumes that the mean and variance of the outcome variable (in this case the number of complaints) is the same.
+Given that we have chosen a Poisson regression, we define the likelihood to be
+the Poisson probability mass function over the number bait stations placed in
+the building, denoted below as `traps`. This model assumes that the mean and
+variance of the outcome variable `complaints` (number of complaints) is the
+same.
 
+For building $b = 1,\dots,10$ at time $t = 1,\dots,12$, we have
+
+$$
 \begin{align*}
-\texttt{qty_complaints}_{traps} & \sim \text{Poisson}(\lambda_{traps}) \\
-\eta_{traps} & = \alpha + \beta \, x_{traps}
+<<<<<<< HEAD
+\textrm{complaints}_{b,t} & \sim \text{Poisson}(\lambda_{b,t}) \\
+\lambda_{b,t} & = \exp{(\eta_{b,t})} \\
+\eta_{b,t} &= \alpha + \beta \, \textrm{traps}_{b,t}
+=======
+\texttt{qty_complaints}_{traps} & \sim \text{Poisson}() \\
+\eta_{} & = \alpha + \beta \, x_{traps}
+>>>>>>> cf5001b2ab6bd6f4bd4661ce9ba329070c51d13d
 \end{align*}
- 
+$$
+
 ### Data
 
 Let's prep the data. Firstly to use the building variable in Stan we will need to trasnform it from a factor variable to an interger variable. 
@@ -95,7 +109,7 @@ stan_dat_hier <-
              N = length(traps),
              J = N_buildings,
              M = N_months,
-             sq_foot = log(pest_data$total_sq_foot/1e4),
+             log_sq_foot = log(pest_data$total_sq_foot/1e4),
              building_data = building_data[,-3],
              mo_idx = as.integer(as.factor(date)),
              K = 4,
@@ -232,17 +246,19 @@ Modeling the relationship between complaints and bait stations is the simplest m
 
 #### Data
 
-A quick test shows us that there appears to be a relationship between the square footage of the building and the number of complaints received. 
+A quick test shows us that there appears to be a relationship between the square footage of the building and the number of complaints received:
 
 ```{r}
-sq_foot_dat_lm <- lm(log1p(complaints) ~ I(total_sq_foot/1e4), data = pest_data)
-with(pest_data, plot(total_sq_foot/1e4, log1p(complaints)))
+sq_foot_dat_lm <- lm(log1p(complaints) ~ log(total_sq_foot), data = pest_data)
+with(pest_data, plot(log(total_sq_foot), log1p(complaints)))
 abline(reg = sq_foot_dat_lm)
 ```
-Using the property manager's intuition, we include two extra peices of information we know about the building - the square floor space and whether there is a live in super or not - into both the simulated and real data. 
+
+
+Using the property manager's intuition, we include two extra peices of information we know about the building - the (log of the) square floor space and whether there is a live in super or not - into both the simulated and real data. 
  
 ```{r}
-stan_dat_simple$sq_foot <- log(pest_data$total_sq_foot/1e4)
+stan_dat_simple$log_sq_foot <- log(pest_data$total_sq_foot/1e4)
 stan_dat_simple$live_in_super <- pest_data$live_in_super
 ```
 
@@ -276,7 +292,7 @@ Now pop that data into a list ready for Stan.
 ```{r}
 stan_dat_fake <- list(
   N = nrow(pest_data), 
-  sq_foot = samps_dgp$sq_foot[1, ],
+  log_sq_foot = samps_dgp$log_sq_foot[1, ],
   live_in_super = samps_dgp$live_in_super[1, ],
   traps = samps_dgp$traps[1, ], 
   complaints = samps_dgp$complaints[1, ]
@@ -336,27 +352,27 @@ This is a plot of... If the model was fitting well it would look like... As you 
 ## Modeling count data : Negative Binomial outcome
 
 When we considered modelling the data using a Poisson, we saw that the residuals from the model fitted to the real data didn't
-conform to the residuals from the model fitted to the fake data. In particular the residuals from the real data fit appeared to have variances that were larger than means. This is one indication of over-dispersion, where the variance is larger than the mean. A Poisson model doesn't fit over-dispersed count data very well because the same parameter $\lambda$, controls both the expected counts and the variance of these counts. The natural alternative to this is the negative binomial model. 
+conform to the residuals from the model fitted to the fake data. In particular the residuals from the real data fit appeared to have variances that were larger than means. This is one indication of over-dispersion, where the variance is larger than the mean. A Poisson model doesn't fit over-dispersed count data very well because the same parameter $\lambda$, controls both the expected counts and the variance of these counts. The natural alternative to this is the negative binomial model: 
 
-In this section we will repeat the same workflow as with the Poisson, but this time with the negative binomial model. First we will focus on the simplest model predicting number of cockroach complaints from the number of traps installed. Then we will expand this to again include the square footage of the building and whether there is a live in super. 
-
-To do this we define the likelihood to be the negative binomial probability mass function over the number of bait stations placed in the building, denoted below as $\texttt{qty_bait}$.
-
+$$
 \begin{align*}
-\texttt{complaints}_{b,t} & \sim \text{Neg-Binomial-log}(\eta_{b,t}, \phi) \\
-\eta_{b,t} & = \alpha + \beta \, X_{b,t}
+\text{complaints}_{b,t} & \sim \text{Neg-Binomial}(\lambda_{b,t}, \phi) \\
+\lambda_{b,t} & = \exp{(\eta_{b,t})} \\
+\eta_{b,t} &= \alpha + \beta_1 {\rm traps} + \beta_2 {\rm super} + \beta_3 \text{log_sq_foot}
 \end{align*}
+$$
 
-The negative binomial mass function we'll use is called 
-$\texttt{neg_binomial_2_log}(\text{ints} \, y, \text{reals} \, \eta, \text{reals} \, \phi)$ in Stan.
-This is negative binomial mass function that is parameterized in terms of its 
-log-mean, $\eta$, and its precision $\phi$. This means that $\mathbb{E}[y] \, = exp(\eta)$ 
-and $\text{Var}[y] = \exp(\eta) + \exp(\eta)^2 / \phi$. 
+In Stan the negative binomial mass function we'll use is called 
+$\texttt{neg_binomial_2_log}(\text{ints} \, y, \text{reals} \, \eta, \text{reals} \, \phi)$ in Stan. Like the `poisson_log` function, this negative binomial mass function that is parameterized in terms of its 
+log-mean, $\eta$, but it also has a precision $\phi$ such that
 
-We saw that 
-
-We'll go through the same process we went through with the Poisson models above
-but instead using a negative binomial outcome model.
+$$
+\mathbb{E}[y] \, = \lambda = \exp(\eta)
+$$
+$$
+\text{Var}[y] = \lambda + \lambda^2/\phi = \exp(\eta) + \exp(\eta)^2 / \phi.
+$$ 
+As $\phi$ gets larger the term $\lambda^2 / \phi$ gets smaller and the negative-binomial gets closer and closer to the Poisson.
 
 ###Fake data fit: Multiple NB regression
 
@@ -364,8 +380,7 @@ but instead using a negative binomial outcome model.
 comp_dgp_multiple_NB <- stan_model('stan_programs/multiple_NB_regression_dgp.stan')
 ```
 
-We're going to generate one draw from the fake data model so we can use the data to fit our
-model and compare the known values of the parameters to the posterior density of the parameters.
+We're going to generate one draw from the fake data model so we can use the data to fit our model and compare the known values of the parameters to the posterior density of the parameters.
 
 ```{r fake_data_dgp_NB}
 fitted_model_dgp_NB <-
@@ -386,7 +401,7 @@ Create a dataset to feed into the Stan model.
 ```{r NB_fake_stan_dat}
 stan_dat_fake_NB <- list(
   N = nrow(pest_data), 
-  sq_foot = samps_dgp_NB$sq_foot[1, ],
+  log_sq_foot = samps_dgp_NB$log_sq_foot[1, ],
   live_in_super = samps_dgp_NB$live_in_super[1, ],
   traps = samps_dgp_NB$traps[1, ], 
   complaints = samps_dgp_NB$complaints[1, ]
@@ -399,9 +414,7 @@ Compile the inferential model.
 comp_model_NB <- stan_model('stan_programs/multiple_NB_regression.stan')
 ```
 
-Now we run our NB regression over the fake data and extract the samples to 
-examine posterior predictive checks and to check whether we've sufficiently
-recovered our known parameters, $\texttt{alpha}$ $\texttt{beta}$.
+Now we run our NB regression over the fake data and extract the samples to examine posterior predictive checks and to check whether we've sufficiently recovered our known parameters, $\texttt{alpha}$ $\texttt{beta}$.
 
 ```{r runNBoverfake}
 fitted_model_NB <- 
@@ -418,9 +431,7 @@ posterior_alpha_beta_NB <-
   )
 ```
 
-Construct the vector of true values from your simulated dataset
-and compare to the recovered parameters.
-
+Construct the vector of true values from your simulated dataset and compare to the recovered parameters. 
 ```{r}
 true_alpha_beta_NB <- 
   c(samps_dgp_NB$alpha,
@@ -472,15 +483,13 @@ std_resid <- (stan_dat_simple$complaints - mean_y_rep) / sqrt(mean_y_rep + mean_
 qplot(mean_y_rep, std_resid) + hline_at(1) + hline_at(-1)
 ```
 
-Looks ok, but we still have some large residuals. It might help to look at the data grouped by
-building.
+Looks ok, but we still have some large residuals. This might be because we are currently ignoring that the data are clustered by buildings, and different buildings might have different overall probability of roaches. 
 
 ```{r}
 ppc_rootogram(stan_dat_simple$complaints, yrep = y_rep)
 ```
 
-The rootgram looks much better, but we should try look at the data along other
-axes to see if there's more information we can use to build our model.
+The rootgram now looks much more plausible. We can tell this because... 
 
 ```{r ppc-group_means}
 bayesplot::ppc_stat_grouped(
@@ -495,12 +504,12 @@ bayesplot::ppc_stat_grouped(
 ### Hierarchical modeling
 #### Random intercepts for each building
 
-It appears that we aren't modeling the means well for each building. Let's add a hierarchical
+Previously we discussed that It appears that we aren't modeling the means well for each building. Let's add a hierarchical
 intercept parameter, $\alpha_b$ at the building level to our model. 
 
 \begin{align*}
 \text{complaints}_{b,t} &\sim \text{Neg-Binomial-log}(\eta_{b,t}, \phi) \\
-\eta_{m,t} &= \alpha_b + \beta \, X_{b,t} \\
+\eta_{b,t} &= \alpha_b + \beta \, X_{b,t} \\
 \alpha_b &\sim \text{Normal}(\alpha, \sigma_{\alpha})
 \end{align*}
 
@@ -514,7 +523,7 @@ $$
 \alpha_b \sim \text{Normal}(\alpha + \zeta \, \texttt{building_data}_b, \sigma_{\alpha})
 $$
 
-Let's compile the model.
+Let's compile the model. 
 
 ```{r comp-NB-hier, cache=T, results="hide", message=FALSE}
 comp_model_NB_hier <- stan_model('stan_programs/hier_NB_regression.stan')
@@ -528,25 +537,23 @@ fitted_model_NB_hier <- sampling(comp_model_NB_hier, data = stan_dat_hier, chain
 
 We get a bunch of warnings from Stan about divergent transitions. Divergent transitions are...
 
-We get clues about why Stan is complaining from examining the fit of the model.
+Divergent transitions are something we need to invesigate further. In this example we will see that we have divergent transitions because we need to reparameterize our model - i.e., we will retain the overall structure of the model, but transform some of the parameters so that it is easier for Stan to sample from the parameter space. Before we go through exactly how to do this reparameterization, we will first go through what indicates that this is something that reparamerization will be useful for. We will go through:
+
+1. Examining the fitted parameter values, including the effective sample size
+2. Traces plots and pairs plots, which help us to see whether the divergent transitions have a pattern for any of the parameters. 
+
+First let's extract the fits from the model. 
 
 ```{r} 
 samps_hier_NB <- rstan::extract(fitted_model_NB_hier)
 ```
 
+Then we print the fits for the parameters that are of most interest. 
 
 ```{r print-NB-hier}
 print(fitted_model_NB_hier, pars = c('sigma_alpha','beta','alpha','prec','alphas'))
 ```
-
-The effective samples are quite low for many of the parameters. This indicates
-that there are problems with our parameterization of the model. We can reparameterize
-the random intercept $\alpha_b$, which is distributed:
-
-$$
-\alpha_b \sim \text{Normal}(\alpha + \zeta \, \texttt{building_data}, \sigma_{\alpha})
-$$
-
+You can see that the effective samples are quite low for many of the parameters relative to the total number of samples. This alone isn't indicative of the need to reparameterize, but it indicates that we should look further at the trace plots and pairs plots. First let's look at the traceplots - 
 
 ```{r}
 # use as.array to keep the markov chains separate for trace plots
@@ -583,6 +590,13 @@ Instead, we should use the non-centered parameterization for $\alpha_b$. We
 define a vector of auxiliary variables in the parameters block,
 $\texttt{alphas_raw}$ that is given a $\text{Normal}(0, 1)$ prior in the model
 block. We then make $\texttt{alphas}$ a transformed parameter:
+We can reparameterize the random intercept $\alpha_b$, which is distributed:
+
+$$
+\alpha_b \sim \text{Normal}(\alpha + \zeta \, \texttt{building_data}, \sigma_{\alpha})
+$$
+
+
 
 ```
 transformed parameters {
@@ -813,7 +827,7 @@ comp_rev <- stan_model('stan_programs/hier_NB_regression_ncp_slopes_mod_mos_pred
 ```
 
 ```{r run-NB-hier-rev, cache=TRUE}
-stan_dat_hier$sq_foot_pred <- log(unique(pest_data$total_sq_foot)/1e4)
+stan_dat_hier$log_sq_foot_pred <- log(unique(pest_data$total_sq_foot)/1e4)
 stan_dat_hier$M_forward <- 12
 rev_model <- sampling(comp_rev, data = stan_dat_hier, chains = 4, cores = 4, iter = 2000)
 ```

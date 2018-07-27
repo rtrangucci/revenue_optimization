@@ -13,7 +13,7 @@ data {
   int<lower=1> N;
   vector[N] traps;
   vector[N] live_in_super;
-  vector[N] sq_foot;
+  vector[N] log_sq_foot;
   int complaints[N];
 }
 parameters {
@@ -34,14 +34,14 @@ model {
   inv_prec ~ normal(0, 1);
   
   complaints ~ neg_binomial_2_log(alpha + beta * traps + beta_super * live_in_super
-                               + beta_sq_foot * sq_foot, prec);
+                               + beta_sq_foot * log_sq_foot, prec);
 } 
 generated quantities {
   int y_rep[N];
   
   for (n in 1:N) 
     y_rep[n] = neg_binomial_2_log_rng(alpha + beta * traps[n] + beta_super * live_in_super[n]
-                                       + beta_sq_foot * sq_foot[n], prec);
+                                       + beta_sq_foot * log_sq_foot[n], prec);
   
 }
 

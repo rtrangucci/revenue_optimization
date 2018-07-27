@@ -18,8 +18,8 @@ data {
   int<lower=1> J;
   int<lower=1, upper=J> building_idx[N];
   matrix[J,K] building_data;
-  vector[N] sq_foot;
-  vector[J] sq_foot_pred;
+  vector[N] log_sq_foot;
+  vector[J] log_sq_foot_pred;
   int<lower=1> mo_idx[N];
   int<lower=1> M_forward;
 }
@@ -67,7 +67,7 @@ model {
   phi_mo ~ beta(5, 5);
   
   complaints ~ neg_binomial_2_log(alphas[building_idx] + betas[building_idx] .* traps 
-                                 + mo[mo_idx] + sq_foot,
+                                 + mo[mo_idx] + log_sq_foot,
                                prec);
 } 
 generated quantities {
@@ -83,7 +83,7 @@ generated quantities {
         mo_forward[m] = normal_rng(phi_mo * mo_forward[m-1], sigma_mos); 
       for (m in 1:M_forward)
         ys[m] = neg_binomial_2_log_safe_rng(alphas[j] + betas[j] * hypo_traps[i]
-                                            + mo_forward[m] + sq_foot_pred[j],
+                                            + mo_forward[m] + log_sq_foot_pred[j],
                                             prec);
       y_rep_potential[j,i] = sum(ys);
       rev_rep_potential[j,i] = y_rep_potential[j,i]/10.0 * (-100);

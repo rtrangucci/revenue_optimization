@@ -10,7 +10,7 @@ data {
   int<lower=1> N;
   vector[N] traps;
   vector[N] live_in_super;
-  vector[N] sq_foot;
+  vector[N] log_sq_foot;
   int complaints[N];
 }
 parameters {
@@ -25,12 +25,12 @@ model {
   beta_super ~ normal(0, 0.5);
   beta_sq_foot ~ normal(0, 0.5);
   
-  complaints ~ poisson_log(alpha + beta * traps + beta_super * live_in_super + beta_sq_foot * sq_foot);
+  complaints ~ poisson_log(alpha + beta * traps + beta_super * live_in_super + beta_sq_foot * log_sq_foot);
 } 
 generated quantities {
   int y_rep[N];
   
   for (n in 1:N) 
     y_rep[n] = poisson_log_safe_rng(alpha + beta * traps[n] + beta_super * live_in_super[n]
-                                   + beta_sq_foot * sq_foot[n]);
+                                   + beta_sq_foot * log_sq_foot[n]);
 }

@@ -17,7 +17,7 @@ data {
   int<lower=1> J;
   int<lower=1, upper=J> building_idx[N];
   matrix[J,K] building_data;
-  vector[N] sq_foot;
+  vector[N] log_sq_foot;
 }
 parameters {
   real alpha;
@@ -39,7 +39,7 @@ model {
   inv_prec ~ normal(0, 1);
   
   complaints ~ neg_binomial_2_log(alphas[building_idx] + beta * traps 
-                               + sq_foot,
+                               + log_sq_foot,
                                prec);
 } 
 generated quantities {
@@ -47,6 +47,6 @@ generated quantities {
   
   for (n in 1:N) 
     y_rep[n] = neg_binomial_2_log_safe_rng(alphas[building_idx[n]] + beta * traps[n]
-                                          + sq_foot[n],
+                                          + log_sq_foot[n],
                                           prec);
 }
