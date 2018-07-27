@@ -103,6 +103,9 @@ N_buildings
 
 So far, so good, we've been given data for `r N_buildings` buildings.
 
+[Note: I'm going to move this block to later in the document when we
+introduce hierarchical models, it's ok to leave here for now]
+
 Let's prep the data. Firstly to use the building variable in Stan we will need
 to trasnform it from a factor variable to an interger variable.
 
