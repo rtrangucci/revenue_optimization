@@ -21,8 +21,12 @@ parameters {
 model {
   beta ~ normal(0, 0.5);
   alpha ~ normal(4, 2);
-  
   complaints ~ poisson_log(alpha + beta * traps_num);
+  /*
+  for (n in 1:N) {
+    complaints[n] ~ poisson(exp(alpha + beta * traps_num[n]));
+  }
+  */
 } 
 generated quantities {
   int y_rep[N];

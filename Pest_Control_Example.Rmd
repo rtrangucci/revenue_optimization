@@ -214,11 +214,16 @@ and printing the parameters. What do these tell us?
 ```{r results_simple_P}
 print(fit_P_real_data, pars = c('alpha','beta'))
 ```
+
+```{r results_simple_P}
+mcmc_hist(as.matrix(fit_P_real_data, pars = c('alpha','beta')))
+```
+
 As we expected, it appears the number of bait stations set in a building impacts the number of complaints about cockroaches that were made in the follwoing month. However, we still need to consider how well the model fits. 
 
 ```{r marginal_PPC}
 y_rep <- as.matrix(fit_P_real_data, pars = "y_rep")
-bayesplot::ppc_dens_overlay(stan_dat_simple$complaints, y_rep[1:200,])
+ppc_dens_overlay(y = stan_dat_simple$complaints, y_rep[1:200,])
 ```
 This is a plot of... If the model was fitting well it would look like... As you can see here, we have ... which indicates that ...
 
@@ -234,6 +239,18 @@ This is a plot of... If the model was fitting well it would look like... As you 
 ppc_rootogram(stan_dat_simple$complaints, yrep = y_rep)
 ```
 This is a plot of... If the model was fitting well it would look like... As you can see here, we have ... which indicates that ...
+
+We can also view how the predicted number of complaints varies with the number of 
+traps: 
+
+```{r}
+ppc_intervals(
+  y = stan_dat_simple$complaints, 
+  yrep = y_rep,
+  x = stan_dat_simple$traps
+) + 
+  labs(x = "Number of traps", y = "Number of complaints")
+```
 
 ### Is there more info we can use?
 
@@ -310,7 +327,7 @@ Then compare these parameters to the true parameters
 
 ```{r}
 true_alpha_beta <- c(samps_dgp$alpha,samps_dgp$beta,samps_dgp$beta_super,samps_dgp$beta_sq_foot)
-bayesplot::mcmc_recover_hist(posterior_alpha_beta, true = true_alpha_beta)
+mcmc_recover_hist(posterior_alpha_beta, true = true_alpha_beta)
 ```
 This is a plot of... If the model was fitting well it would look like... As you can see here, we have ... which indicates that ...
 
@@ -327,7 +344,7 @@ Then explore the fit.
 
 ```{r}
 y_rep <- as.matrix(fit_model_P_mult_real, pars = "y_rep")
-bayesplot::ppc_dens_overlay(stan_dat_simple$complaints, y_rep[1:200,])
+ppc_dens_overlay(stan_dat_simple$complaints, y_rep[1:200,])
 ```
 This is a plot of... If the model was fitting well it would look like... As you can see here, we have ... which indicates that ...
 
@@ -343,6 +360,16 @@ This is a plot of... If the model was fitting well it would look like... As you 
 ppc_rootogram(stan_dat_simple$complaints, yrep = y_rep)
 ```
 This is a plot of... If the model was fitting well it would look like... As you can see here, we have ... which indicates that ...
+
+
+```{r}
+ppc_intervals(
+  y = stan_dat_simple$complaints, 
+  yrep = y_rep,
+  x = stan_dat_simple$traps
+) + 
+  labs(x = "Number of traps", y = "Number of complaints")
+```
 
 ## Modeling count data : Negative Binomial outcome
 
@@ -437,7 +464,7 @@ true_alpha_beta_NB <-
     samps_dgp_NB$beta_sq_foot,
     samps_dgp_NB$inv_prec
   )
-bayesplot::mcmc_recover_hist(posterior_alpha_beta_NB, true = true_alpha_beta_NB)
+mcmc_recover_hist(posterior_alpha_beta_NB, true = true_alpha_beta_NB)
 ```
 
 [Note to Lauren and Jonah: This looks OK, but what's going on with the 
@@ -488,10 +515,23 @@ ppc_rootogram(stan_dat_simple$complaints, yrep = y_rep)
 
 The rootgram now looks much more plausible. We can tell this because... 
 
+
+Check predictions by number of traps: 
+```{r}
+ppc_intervals(
+  y = stan_dat_simple$complaints, 
+  yrep = y_rep,
+  x = stan_dat_simple$traps
+) + 
+  labs(x = "Number of traps", y = "Number of complaints")
+```
+
+
+Check predictions building by building:
 ```{r ppc-group_means}
-bayesplot::ppc_stat_grouped(
+ppc_stat_grouped(
   stan_dat_simple$complaints, 
-  y_rep[1:200,], 
+  y_rep, 
   group = pest_data$building_idx, 
   stat = 'mean'
 )
@@ -676,6 +716,19 @@ ppc_stat_grouped(
 The building means appear to be well-captured by our model.
 
 
+Predictions by number of traps:
+
+```{r}
+ppc_intervals_grouped(
+  y = stan_dat_hier$complaints, 
+  yrep = y_rep,
+  x = stan_dat_hier$traps
+) + 
+  labs(x = "Number of traps", y = "Number of complaints")
+```
+
+
+Standardized residuals:
 ```{r}
 mean_y_rep <- colMeans(y_rep)
 mean_inv_prec <- mean(as.matrix(fitted_model_NB_hier_ncp, pars = "inv_prec"))
@@ -683,6 +736,7 @@ std_resid <- (stan_dat_hier$complaints - mean_y_rep) / sqrt(mean_y_rep + mean_y_
 qplot(mean_y_rep, std_resid) + hline_at(1) + hline_at(-1)
 ```
 
+Rootogram:
 ```{r}
 ppc_rootogram(stan_dat_hier$complaints, yrep = y_rep)
 ```
