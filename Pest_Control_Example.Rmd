@@ -75,14 +75,9 @@ For building $b = 1,\dots,10$ at time $t = 1,\dots,12$, we have
 
 $$
 \begin{align*}
-<<<<<<< HEAD
 \textrm{complaints}_{b,t} & \sim \text{Poisson}(\lambda_{b,t}) \\
 \lambda_{b,t} & = \exp{(\eta_{b,t})} \\
 \eta_{b,t} &= \alpha + \beta \, \textrm{traps}_{b,t}
-=======
-\texttt{qty_complaints}_{traps} & \sim \text{Poisson}() \\
-\eta_{} & = \alpha + \beta \, x_{traps}
->>>>>>> cf5001b2ab6bd6f4bd4661ce9ba329070c51d13d
 \end{align*}
 $$
 
@@ -369,10 +364,12 @@ log-mean, $\eta$, but it also has a precision $\phi$ such that
 $$
 \mathbb{E}[y] \, = \lambda = \exp(\eta)
 $$
+
 $$
 \text{Var}[y] = \lambda + \lambda^2/\phi = \exp(\eta) + \exp(\eta)^2 / \phi.
 $$ 
 As $\phi$ gets larger the term $\lambda^2 / \phi$ gets smaller and the negative-binomial gets closer and closer to the Poisson.
+
 
 ###Fake data fit: Multiple NB regression
 
