@@ -506,7 +506,7 @@ intercept parameter, $\alpha_b$ at the building level to our model.
 
 \begin{align*}
 \text{complaints}_{b,t} &\sim \text{Neg-Binomial-log}(\eta_{b,t}, \phi) \\
-\eta_{b,t} &= \alpha_b + \beta \, X_{b,t} \\
+\eta_{b,t} &= \alpha_b + X_{b,t} \beta \\
 \alpha_b &\sim \text{Normal}(\alpha, \sigma_{\alpha})
 \end{align*}
 
