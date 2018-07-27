@@ -494,7 +494,7 @@ Let's look at our predictions vs. the data.
 
 ```{r ppc-full}
 y_rep <- samps_NB$y_rep
-bayesplot::ppc_dens_overlay(stan_dat_simple$complaints, 
+ppc_dens_overlay(stan_dat_simple$complaints, 
                             y_rep[1:200,])
 ```
 
@@ -849,7 +849,7 @@ In the interest of brevity, we won't go on expanding the model.
 
 ```{r ppc-full-hier-mos}
 y_rep <- as.matrix(fitted_model_NB_hier_mos, pars = "y_rep")
-bayesplot::ppc_dens_overlay(
+ppc_dens_overlay(
   y = stan_dat_hier$complaints, 
   yrep = y_rep[1:200,]
 )
