@@ -103,6 +103,31 @@ N_buildings
 
 So far, so good, we've been given data for `r N_buildings` buildings.
 
+
+```{r data-plots}
+ggplot(pest_data, aes(x = complaints)) + 
+  geom_bar()
+
+ggplot(pest_data, aes(x = traps, y = complaints)) + 
+  geom_col()
+
+ggplot(pest_data, aes(x = traps, y = complaints, color = live_in_super == TRUE)) + 
+  geom_jitter()
+
+ggplot(pest_data, aes(x = date, y = complaints, color = live_in_super == TRUE)) + 
+  geom_line(aes(linetype = "Number of complaints")) + 
+  geom_point(color = "black") + 
+  geom_line(aes(y = traps, linetype = "Number of traps"), color = "black", size = 0.25) + 
+  facet_wrap(~building_id, scales = "free", ncol = 5) + 
+  scale_x_date(name = "Month", date_labels = "%b") + 
+  scale_y_continuous(name = "", limits = range(pest_data$complaints)) + 
+  scale_linetype_discrete(name = "") + 
+  scale_color_discrete(name = "Live-in super")
+```
+
+
+
+
 [Note: I'm going to move this block to later in the document when we
 introduce hierarchical models, it's ok to leave here for now]
 
