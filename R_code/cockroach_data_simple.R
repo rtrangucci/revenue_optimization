@@ -25,7 +25,8 @@ gen_data <- function(N_buildings, N_wks, obs_noise = 20, seed=123) {
                               floors = rtpois(N_buildings, 10, 3, 20),
                               sq_footage_p_floor = rnorm(N_buildings) * 7 * sqrt(3500) + 5000,
                               #sq_footage_p_floor = sample(c(465,672,1028),N_buildings,replace=T),
-                              live_in_super = sample(c(0,1),N_buildings, replace=T),
+                              # live_in_super = sample(c(0,1),N_buildings, replace=T),
+                              live_in_super = c(rep(0,7),rep(1,3))[sample(1:N_buildings,N_buildings,replace=F)],
                               monthly_average_rent = rnorm(N_buildings) * 7 * sqrt(3500) + 3500,
                               average_tenant_age = rnorm(N_buildings) * 7 + 50,
                               age_of_building = rtpois(N_buildings, 50, 20, 70)) %>% 
@@ -103,4 +104,4 @@ df %>% mutate(idx = as.integer(as.factor(title)), opt_price = -1/df_test_2$betas
 unique(df_mod[,c('title','opt_price')])
 summary(df$units_sold)
 with(dplyr::filter(df_test$df, building_id == 1), plot(date, complaints, type = 'l'))
-saveRDS(rename(df_test$df,traps=trap), 'data/building_data_20180724.RDS')
+saveRDS(rename(df_test$df,traps=trap), 'data/building_data_20180727.RDS')
