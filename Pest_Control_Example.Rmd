@@ -140,19 +140,19 @@ stan_dat_hier <-
 The first question we might want to ask is whether the number of complaints per 
 building per month is a function of the number of bait stations per building per
 month. That requires only two variables, $\textrm{complaints}$ and 
-$\textrm{traps}$.
+$\textrm{traps}$. How can we model the number of complaints? 
 
 ## Modeling count data : Poisson distribution
 
-How can we model the number of complaints? We already know some rudimentary
-information about what we should expect. The number of complaints over a month
-should be either zero or an integer. The property manager tells us that it is
-possible but unlikely that number of complaints in a given month is zero.
-Occasionally there are a very large number of complaints in a single month. A
-common way of modelling this sort of skewed, single bounded count data is as a
-Poisson random variable. One concern about modelling the outcome variable as a
-Poisson is that the data may be over-dispersed. How can we address this concern?
-We'll start with a simple Poisson model and build it up slowly.
+We already know some rudimentary information about what we should expect. The
+number of complaints over a month should be either zero or an integer. The
+property manager tells us that it is possible but unlikely that number of
+complaints in a given month is zero. Occasionally there are a very large number
+of complaints in a single month. A common way of modelling this sort of skewed,
+single bounded count data is as a Poisson random variable. One concern about
+modelling the outcome variable as a Poisson is that the data may be
+over-dispersed. How can we address this concern? We'll start with a simple
+Poisson model and build it up slowly.
 
 ### Model 
 
@@ -160,7 +160,8 @@ Given that we have chosen a Poisson regression, we define the likelihood to be
 the Poisson probability mass function over the number bait stations placed in
 the building, denoted below as `traps`. This model assumes that the mean and
 variance of the outcome variable `complaints` (number of complaints) is the
-same.
+same. We'll investigate whether this is a good assumption after we fit the 
+model.
 
 For building $b = 1,\dots,10$ at time $t = 1,\dots,12$, we have
 
@@ -172,24 +173,19 @@ $$
 \end{align*}
 $$
 
-
-We need make a list of the data that we will use for the model because that's the 
-way RStan requires the data to be prepped. 
-
-```{r stan-data}
-stan_dat_simple <- list(
-  N = nrow(pest_data), 
-  complaints = pest_data$complaints,
-  traps = pest_data$traps
-)
-```
-
-However, before we fit the model, we need to walk through
-the best way to go about developing models in Stan.
-
 ## Bayesian workflow
 
 Insert steps here
+
+
+Let's encode this probability model in Stan code. 
+
+### Writing our first Stan model
+
+### Making sure our code is right
+
+However, before we fit the model, we need to walk through
+the best way to go about developing models in Stan.
 
 
 ### Simulate some data
@@ -220,7 +216,9 @@ samps_dgp <- rstan::extract(fitted_model_dgp)
 str(samps_dgp)
 ```
 
-Like before, we need to arrange the data into a list ready to pass to Stan. 
+In order to pass the fake data to our Stan program using RStan, we need to
+arrange the data into a named list, whose elements correspond to the names
+in our Stan program.
 
 ```{r}
 stan_dat_fake <- list(
@@ -273,10 +271,21 @@ ppc_rootogram(stan_dat_fake$complaints, yrep = y_rep)
 ```
 This is a plot of... If the model was fitting well it would look like... As you can see here, we have ... which indicates that ...
 
-
 ### Fit with real data 
 
-Now we have seen that we can sensibly recover the parameters from simulated data. Next we can use this model with the real data that we observerd. As we have already compiled the model, we can jump straight to sampling from it. 
+Now we have seen that we can sensibly recover the parameters from simulated
+data. Next we can use this model with the real data that we observerd. We'll again
+pass the data to RStan as a list:
+
+```{r stan-data}
+stan_dat_simple <- list(
+  N = nrow(pest_data), 
+  complaints = pest_data$complaints,
+  traps = pest_data$traps
+)
+```
+
+As we have already compiled the model, we can jump straight to sampling from it.
 
 ```{r fit_P_real_data, cache=T}
 fit_P_real_data <- sampling(comp_model_P, data = stan_dat_simple, chains = 4, cores =4 )
