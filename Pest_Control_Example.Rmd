@@ -25,65 +25,86 @@ set.seed(1123)
 
 ## The problem
 
-LLet's say that you're a data scientist working as an independent contractor. You're contacted by the property manager of a large property network in New York City. They explain that they are having an issue with the number of cockroach complaints that they receive from their buildings. Previously they have offered monthly visits from a pest inspector as a solution to this problem. While this is the default solution of many property managers in NYC, the tennants are rarely home when the inpector visits, and so the manager reasons that this is a relatively expensive solution that is currently not very effective.
+Let's say that you're a data scientist working as an independent contractor.
+You're contacted by the property manager of a large property network in New York
+City. They explain that they are having an issue with the number of cockroach
+complaints that they receive from their buildings. Previously they have offered
+monthly visits from a pest inspector as a solution to this problem. While this
+is the default solution of many property managers in NYC, the tenants are
+rarely home when the inpector visits, and so the manager reasons that this is a
+relatively expensive solution that is currently not very effective.
 
-One alternative to this problem is to deploy long term bait stations. In this alternative child and pet safe bait stations are installed throughout the apartment building. Cockroaches obtain quick acting poison from these stations distribute it throughout the colony. The manufactorer for these bai stations provides some indication of the space to bait efficacy, but the manager suspects that this guidance was not calculated for NYC roaches. NYC roaches, the manager rationalises, have more hustle than traditional roaches; and NYC buildings are built differently to other common domestic buildings in the US. This is particularly important as the unit cost for each bait station is quite high.
+One alternative to this problem is to deploy long term bait stations. In this 
+alternative child and pet safe bait stations are installed throughout the 
+apartment building. Cockroaches obtain quick acting poison from these stations 
+distribute it throughout the colony. The manufactorer for these bait stations 
+provides some indication of the space to bait efficacy, but the manager suspects
+that this guidance was not calculated for NYC roaches. NYC roaches, the manager 
+rationalises, have more hustle than traditional roaches; and NYC buildings are 
+built differently to other common domestic buildings in the US. This is 
+particularly important as the unit cost for each bait station per year is quite
+high.
 
-The manager wishes to employ your services to help them to optomize the number of roach bait stations they should place in each of their buildings in order to minimise both the number of cockroach complaints and expenditure on pest control. They have randomly selected `r N_buildings` buildings. At the beginning of each month, a pest inspector randomly places a number of bait stations throughout the building, without knowledge of the current cockroach levels in the building. At the end of the month, the manager records the total number of cockroach complaints in that building. The manager would like to predict the optimise number of traps ($t$) and complaints ($c$) for these `r N_buildings` 10 buildings, and predict for new buildings how many bait stations they should place. 
+The manager wishes to employ your services to help them to optimize the number 
+of roach bait stations they should place in each of their buildings in order to 
+minimise both the number of cockroach complaints and expenditure on pest 
+control. They have randomly selected buildings. At the beginning
+of each month, a pest inspector randomly places a number of bait stations 
+throughout the building, without knowledge of the current cockroach levels in 
+the building. At the end of the month, the manager records the total number of 
+cockroach complaints in that building. Ideally, the manager would like to 
+determine the optimal number of traps ($\textrm{traps}$) that balances the lost
+revenue ($R$) that complaints ($\textrm{complaints}$) generate with the all-in
+cost of maintaining the traps ($\textrm{TC}$). Luckily, we're up to the task! We
+would formalize the problem like so:
 
 $$
-\arg\min_{t \in T} \mathbb{E}_c[c(t) \, t]
+\arg\max_{\textrm{traps} \in \mathbb{N}} \mathbb{E}_c[R(\textrm{complaints}(\textrm{traps})) - \textrm{TC}(\textrm{traps})]
 $$
 
-As the property manager has complete control over the number of traps set, the random variable contributing to this expectation is the number of complaints given the number of traps. We will model the number of complaints as a function of the number of traps. 
+The property manager would also, if possible, like to learn how these results 
+generalize outside of the buildings they've treated so they can understand the
+potential costs of pest control at buildings they are aquiring as well as for
+the rest of their building portfolio.
+
+As the property manager has complete control over the number of traps set, the
+random variable contributing to this expectation is the number of complaints
+given the number of traps. We will model the number of complaints as a function
+of the number of traps.
 
 ## The data
 
-The data is in a file called `building_data_20180723.RDS`. Let's load the data and see what the structure
-is:
+The data is in a file called `building_data_20180724.RDS`. Let's load the data
+and see what the structure is:
 
 ```{r load-data}
 pest_data <- readRDS('data/building_data_20180724.RDS')
 str(pest_data)
 ```
 
+We have access to the following fields: 
+* complaints: Number of complaints per building per month
+* building_id: The unique building identifier
+* traps: The number of traps used per month per building
+* date: The date at which the number of complaints are recorded
+* live_in_super: An indicator for whether the building as a live-in super
+* age_of_building: The age of the building
+* total_sq_foot: The total square footage of the building
+* average_tenant_age: The average age of the tenants per building
+* monthly_average_rent: The average monthly rent per building
+* floors: The number of floors per building
+
+First, let's see how many buildings we have data for:
+
 ```{r describe-data}
 N_buildings <- length(unique(pest_data$building_id))
 N_buildings
 ```
 
-We're working with `r N_buildings` buildings. We should first want to learn whether the number of complaints is
-related to number of cockroach traps. 
+So far, so good, we've been given data for `r N_buildings` buildings.
 
-## Bayesian workflow
-
-Insert steps here
-
-## Modeling count data : Poisson distribution
-
-How can we model the number of complaints? We already know some rudimentary information about what we should expect. The number of complaints over a month should be either zero or an integer. The property manager tells us that it is possible but unlikely that number of complaints in a given month is zero. Occasionally there are a very large number of complaints in a single month. A common way of modelling this sort of skewed, single bounded count data is as a Poisson random variable. One concern about modelling the outcome variable as a Poisson is that the data may be over-dispersed. How can we address this concern? We'll start with a simple Poisson model and build it up slowly.
-
-### Model 
-
-Given that we have chosen a Poisson regression, we define the likelihood to be
-the Poisson probability mass function over the number bait stations placed in
-the building, denoted below as `traps`. This model assumes that the mean and
-variance of the outcome variable `complaints` (number of complaints) is the
-same.
-
-For building $b = 1,\dots,10$ at time $t = 1,\dots,12$, we have
-
-$$
-\begin{align*}
-\textrm{complaints}_{b,t} & \sim \text{Poisson}(\lambda_{b,t}) \\
-\lambda_{b,t} & = \exp{(\eta_{b,t})} \\
-\eta_{b,t} &= \alpha + \beta \, \textrm{traps}_{b,t}
-\end{align*}
-$$
-
-### Data
-
-Let's prep the data. Firstly to use the building variable in Stan we will need to trasnform it from a factor variable to an interger variable. 
+Let's prep the data. Firstly to use the building variable in Stan we will need
+to trasnform it from a factor variable to an interger variable.
 
 ```{r prep-data}
 N_months <- max(table(pest_data$building_id))
@@ -113,6 +134,12 @@ stan_dat_hier <-
         )
 ```
 
+
+The first questsion we might want to ask is whether the number of complaints per
+building per month is a function of the number of bait stations per building per
+month.That requires
+only two variables, $\textrm{complaints}$ and $\textrm{traps}$.
+
 We will also make a list of the data that we will use for this model as well. 
 
 ```{r stan-data}
@@ -123,9 +150,48 @@ stan_dat_simple <- list(
 )
 ```
 
+
+
+## Bayesian workflow
+
+Insert steps here
+
+## Modeling count data : Poisson distribution
+
+How can we model the number of complaints? We already know some rudimentary
+information about what we should expect. The number of complaints over a month
+should be either zero or an integer. The property manager tells us that it is
+possible but unlikely that number of complaints in a given month is zero.
+Occasionally there are a very large number of complaints in a single month. A
+common way of modelling this sort of skewed, single bounded count data is as a
+Poisson random variable. One concern about modelling the outcome variable as a
+Poisson is that the data may be over-dispersed. How can we address this concern?
+We'll start with a simple Poisson model and build it up slowly.
+
+### Model 
+
+Given that we have chosen a Poisson regression, we define the likelihood to be
+the Poisson probability mass function over the number bait stations placed in
+the building, denoted below as `traps`. This model assumes that the mean and
+variance of the outcome variable `complaints` (number of complaints) is the
+same.
+
+For building $b = 1,\dots,10$ at time $t = 1,\dots,12$, we have
+
+$$
+\begin{align*}
+\textrm{complaints}_{b,t} & \sim \textrm{Poisson}(\lambda_{b,t}) \\
+\lambda_{b,t} & = \exp{(\eta_{b,t})} \\
+\eta_{b,t} &= \alpha + \beta \, \textrm{traps}_{b,t}
+\end{align*}
+$$
+
 ### Simulate some data
 
-How do we know if our Stan model is working well and if we are able to recover the known parameter values? Before we start fitting our Poisson model to the real data, first let's generate some fake data that matches our assumptions about the data. 
+How do we know if our Stan model is working well and if we are able to recover
+the known parameter values? Before we start fitting our Poisson model to the
+real data, first let's generate some fake data that matches our assumptions
+about the data.
 
 First we will compile the Stan model (simple_poisson_regression_dgp.stan) that generated the fake data.
 
@@ -886,6 +952,12 @@ rev_model <- sampling(comp_rev, data = stan_dat_hier, chains = 4, cores = 4, ite
 Below we've generated our revenue curves for the 10 buildings. These charts will give us 
 precise quantification of our uncertainty around our revenue projections at any number of traps for
 each building. 
+
+A key input to our analysis will be the cost of installing bait stations. We're simulating
+the number of complaints we receive over the course of a year, so we need to understand the
+cost associated with maintaining each bait station over the course of a year. There's the
+cost attributed to the raw bait station, which is the plastic housing and the bait material,
+a peanut-buttery substance that's injected with insecticide.
 
 ```{r rev-curves}
 # extract as a list for convenience below
