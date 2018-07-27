@@ -335,9 +335,12 @@ This is a plot of... If the model was fitting well it would look like... As you 
 
 ## Modeling count data : Negative Binomial outcome
 
-We'll start with a simple model and build it up slowly. First, we'll define our 
-likelihood to be the negative binomial probability mass function over the number
-of units sold, denoted below as $\texttt{qty_sld}$.
+When we considered modelling the data using a Poisson, we saw that the residuals from the model fitted to the real data didn't
+conform to the residuals from the model fitted to the fake data. In particular the residuals from the real data fit appeared to have variances that were larger than means. This is one indication of over-dispersion, where the variance is larger than the mean. A Poisson model doesn't fit over-dispersed count data very well because the same parameter $\lambda$, controls both the expected counts and the variance of these counts. The natural alternative to this is the negative binomial model. 
+
+In this section we will repeat the same workflow as with the Poisson, but this time with the negative binomial model. First we will focus on the simplest model predicting number of cockroach complaints from the number of traps installed. Then we will expand this to again include the square footage of the building and whether there is a live in super. 
+
+To do this we define the likelihood to be the negative binomial probability mass function over the number of bait stations placed in the building, denoted below as $\texttt{qty_bait}$.
 
 \begin{align*}
 \texttt{complaints}_{b,t} & \sim \text{Neg-Binomial-log}(\eta_{b,t}, \phi) \\
@@ -350,10 +353,7 @@ This is negative binomial mass function that is parameterized in terms of its
 log-mean, $\eta$, and its precision $\phi$. This means that $\mathbb{E}[y] \, = exp(\eta)$ 
 and $\text{Var}[y] = \exp(\eta) + \exp(\eta)^2 / \phi$. 
 
-We saw that the residuals from the model fitted to the real data didn't
-conform to the residuals from the model fitted to the fake data. In particular
-the residuals from the real data fit appeared to have variances that were larger
-than means. 
+We saw that 
 
 We'll go through the same process we went through with the Poisson models above
 but instead using a negative binomial outcome model.
