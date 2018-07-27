@@ -137,13 +137,13 @@ stan_dat_hier <-
         )
 ```
 
-
-The first questsion we might want to ask is whether the number of complaints per
+The first question we might want to ask is whether the number of complaints per
 building per month is a function of the number of bait stations per building per
 month.That requires
 only two variables, $\textrm{complaints}$ and $\textrm{traps}$.
 
-We will also make a list of the data that we will use for this model as well. 
+We need make a list of the data that we will use for the model because that's the 
+way RStan requires the data to be prepped. 
 
 ```{r stan-data}
 stan_dat_simple <- list(
@@ -153,7 +153,8 @@ stan_dat_simple <- list(
 )
 ```
 
-
+However, before we fit the model, we need to walk through
+the best way to go about developing models in Stan.
 
 ## Bayesian workflow
 
