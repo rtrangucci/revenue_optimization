@@ -31,20 +31,20 @@ One alternative to this problem is to deploy long term bait stations. In this al
 
 The manager wishes to employ your services to help them to optomize the number of roach bait stations they should place in each of their buildings in order to minimise both the number of cockroach complaints and expenditure on pest control. They have randomly selected `r N_buildings` buildings. At the beginning of each month, a pest inspector randomly places a number of bait stations throughout the building, without knowledge of the current cockroach levels in the building. At the end of the month, the manager records the total number of cockroach complaints in that building. The manager would like to predict the optimise number of traps ($t$) and complaints ($c$) for these `r N_buildings` 10 buildings, and predict for new buildings how many bait stations they should place. 
 
-\begin{align*}
+$$
 \arg\min_{t \in T} \mathbb{E}_c[c(t) \, t]
-\end{align*}
+$$
 
 As the property manager has complete control over the number of traps set, the random variable contributing to this expectation is the number of complaints given the number of traps. We will model the number of complaints as a function of the number of traps. 
 
 ## The data
 
-The data is in a file called $\texttt{building_data_20180723.RDS}$. Let's load the data and see what the structure
+The data is in a file called `building_data_20180723.RDS`. Let's load the data and see what the structure
 is:
 
 ```{r load-data}
 pest_data <- readRDS('data/building_data_20180724.RDS')
-head(pest_data)
+str(pest_data)
 ```
 
 ```{r describe-data}
@@ -120,7 +120,7 @@ How do we know if our Stan model is working well and if we are able to recover t
 
 First we will compile the Stan model (simple_poisson_regression_dgp.stan) that generated the fake data.
 
-```{r compNBdgp, cache=T, results="hide", message=FALSE}
+```{r , cache=T, results="hide", message=FALSE}
 comp_dgp_simple <- stan_model('stan_programs/simple_poisson_regression_dgp.stan')
 ```
 
@@ -141,7 +141,7 @@ str(samps_dgp)
 
 Like before, we need to arrange the data into a list ready to pass to Stan. 
 
-```{r P_fake_stan_dat}
+```{r}
 stan_dat_fake <- list(
   N = nrow(pest_data), 
   traps = samps_dgp$traps[1, ], 
@@ -153,13 +153,13 @@ str(stan_dat_fake)
 
 Now we have the simulated data we fit a Stan model using it. First we need to compile the model (simple_poisson_regression.stan).
 
-```{r compNB, cache=T, results="hide", message=FALSE}
+```{r , cache=T, results="hide", message=FALSE}
 comp_model_P <- stan_model('stan_programs/simple_poisson_regression.stan')
 ```
 
 Lastly, let's run the model to see if we can recover our simulated parameters. 
 
-```{r runPoverfake}
+```{r}
 fit_model_P <- sampling(comp_model_P, data = stan_dat_fake)
 
 # see http://mc-stan.org/rstan/articles/stanfit_objects.html for various
@@ -179,7 +179,7 @@ mcmc_recover_hist(posterior_alpha_beta, true = true_alpha_beta)
 
 Then do Posterior Predictive Checks
 
-```{r marginal_PPC}
+```{r}
 y_rep <- as.matrix(fit_model_P, pars = "y_rep")
 mean_y_rep <- colMeans(y_rep)
 std_resid <- (stan_dat_fake$complaints - mean_y_rep) / sqrt(mean_y_rep)
@@ -214,7 +214,7 @@ bayesplot::ppc_dens_overlay(stan_dat_simple$complaints, y_rep[1:200,])
 This is a plot of... If the model was fitting well it would look like... As you can see here, we have ... which indicates that ...
 
 
-```{r marginal_PPC}
+```{r}
 mean_y_rep <- colMeans(y_rep)
 std_resid <- (stan_dat_simple$complaints - mean_y_rep) / sqrt(mean_y_rep)
 qplot(mean_y_rep, std_resid) + hline_at(1) + hline_at(-1)
@@ -246,12 +246,6 @@ stan_dat_simple$sq_foot <- log(pest_data$total_sq_foot/1e4)
 stan_dat_simple$live_in_super <- pest_data$live_in_super
 ```
 
-<!-- [Note to Jonah/Rob: Does this need to be here if we generate new fake data below? -->
-
-```{r}
-stan_dat_fake$sq_foot <- rnorm(stan_dat_fake$N)
-stan_dat_fake$live_in_super <- rnorm(stan_dat_fake$N)
-```
 
 ####Model
 
@@ -263,7 +257,7 @@ comp_dgp_multiple <- stan_model('stan_programs/multiple_poisson_regression_dgp.s
 
 Then we generate some fake data from this model. 
 
-```{r runpoissondgp}
+```{r runpoissondgp2}
 fitted_model_dgp <-
   sampling(
   comp_dgp_multiple,
@@ -279,7 +273,7 @@ samps_dgp <- rstan::extract(fitted_model_dgp)
 
 Now pop that data into a list ready for Stan. 
 
-```{r P_fake_stan_dat}
+```{r}
 stan_dat_fake <- list(
   N = nrow(pest_data), 
   sq_foot = samps_dgp$sq_foot[1, ],
@@ -291,13 +285,13 @@ stan_dat_fake <- list(
 
 And compile the model to fit this data with. 
 
-```{r compNB, cache=T, results="hide", message=FALSE}
+```{r, cache=T, results="hide", message=FALSE}
 comp_model_P_mult <- stan_model('stan_programs/multiple_poisson_regression.stan')
 ```
 
 Fit the data with the model, and extract the alpha and beta parameters. 
 
-```{r runPoverfake}
+```{r}
 fit_model_P_mult <- sampling(comp_model_P_mult, data = stan_dat_fake, chains = 4, cores = 4)
 posterior_alpha_beta <- as.matrix(fit_model_P_mult, pars = c('alpha','beta','beta_super','beta_sq_foot'))
 ```
@@ -320,13 +314,13 @@ fit_model_P_mult_real <- sampling(comp_model_P_mult, data = stan_dat_simple, cor
 ```
 Then explore the fit. 
 
-```{r marginal_PPC}
+```{r}
 y_rep <- as.matrix(fit_model_P_mult_real, pars = "y_rep")
 bayesplot::ppc_dens_overlay(stan_dat_simple$complaints, y_rep[1:200,])
 ```
 This is a plot of... If the model was fitting well it would look like... As you can see here, we have ... which indicates that ...
 
-```{r marginal_PPC}
+```{r}
 mean_y_rep <- colMeans(y_rep)
 std_resid <- (stan_dat_simple$complaints - mean_y_rep) / sqrt(mean_y_rep)
 qplot(mean_y_rep, std_resid) + hline_at(1) + hline_at(-1)
@@ -366,7 +360,7 @@ but instead using a negative binomial outcome model.
 
 ###Fake data fit: Multiple NB regression
 
-```{r compNBdgp, cache=T, results="hide", message=FALSE}
+```{r , cache=T, results="hide", message=FALSE}
 comp_dgp_multiple_NB <- stan_model('stan_programs/multiple_NB_regression_dgp.stan')
 ```
 
@@ -401,7 +395,7 @@ stan_dat_fake_NB <- list(
 
 Compile the inferential model.
 
-```{r compNB, cache=T, results="hide", message=FALSE}
+```{r , cache=T, results="hide", message=FALSE}
 comp_model_NB <- stan_model('stan_programs/multiple_NB_regression.stan')
 ```
 
@@ -446,7 +440,7 @@ still odd for the overall intercept. Also, the
 inverse precision parameter has almost no contraction, which is odd. We should
 figure this out before the class]
 
-```{r marginal_PPC}
+```{r}
 y_rep <- rstan::extract(fitted_model_NB)$y_rep
 mean_inv_prec <- mean(posterior_alpha_beta_NB[,'inv_prec'])
 mean_y_rep <- colMeans(y_rep)
@@ -471,7 +465,7 @@ bayesplot::ppc_dens_overlay(stan_dat_simple$complaints,
 
 These look OK, but let's look at the standardized residual plot.
 
-```{r marginal_PPC}
+```{r}
 mean_inv_prec <- mean(samps_NB$inv_prec)
 mean_y_rep <- colMeans(y_rep)
 std_resid <- (stan_dat_simple$complaints - mean_y_rep) / sqrt(mean_y_rep + mean_y_rep^2*mean_inv_prec)
@@ -504,11 +498,11 @@ bayesplot::ppc_stat_grouped(
 It appears that we aren't modeling the means well for each building. Let's add a hierarchical
 intercept parameter, $\alpha_b$ at the building level to our model. 
 
-$$
-\texttt{complaints}_{b,t} \sim \text{Neg-Binomial-log}(\eta_{b,t}, \phi) \\
-\eta_{m,t} = \alpha_b + \beta \, X_{b,t} \\
-\alpha_b \sim \text{Normal}(\alpha, \sigma_{\alpha})
-$$
+\begin{align*}
+\text{complaints}_{b,t} &\sim \text{Neg-Binomial-log}(\eta_{b,t}, \phi) \\
+\eta_{m,t} &= \alpha_b + \beta \, X_{b,t} \\
+\alpha_b &\sim \text{Normal}(\alpha, \sigma_{\alpha})
+\end{align*}
 
 In our stan model, $\alpha_b$ is the $b$-th element of the vector
 $\texttt{alpha}$ defined in the parameter vector. 
@@ -549,9 +543,10 @@ The effective samples are quite low for many of the parameters. This indicates
 that there are problems with our parameterization of the model. We can reparameterize
 the random intercept $\alpha_b$, which is distributed:
 
-\begin{align*}
-\alpha_b & \sim \text{Normal}(\alpha + \zeta \, \texttt{building_data}, \sigma_{\alpha})
-\end{align*}
+$$
+\alpha_b \sim \text{Normal}(\alpha + \zeta \, \texttt{building_data}, \sigma_{\alpha})
+$$
+
 
 ```{r}
 # use as.array to keep the markov chains separate for trace plots
@@ -589,12 +584,12 @@ define a vector of auxiliary variables in the parameters block,
 $\texttt{alphas_raw}$ that is given a $\text{Normal}(0, 1)$ prior in the model
 block. We then make $\texttt{alphas}$ a transformed parameter:
 
-\begin{verbatim}
+```
 transformed parameters {
   vector[J] alphas;
   alphas = alpha + building_data * zeta + sigma_alpha * alphas_raw;
 }
-\end{verbatim}
+```
 
 This gives $\texttt{alphas}$ a $\text{Normal}(\alpha + \texttt{building_data}\, \zeta, \sigma_\alpha)$ distribution, but it
 decouples the dependence of the density of each element of $\texttt{alphas}$ from 
@@ -604,7 +599,7 @@ fitted model to see whether we've fixed the problem with our reparameterization.
 
 Compile the model.
 
-```{r comp-NB-hier-ncp}
+```{r comp-NB-hier-ncp, cache=TRUE}
 comp_model_NB_hier_ncp <- stan_model('stan_programs/hier_NB_regression_ncp.stan')
 ```
 
@@ -686,12 +681,14 @@ Ok, so these plots look \emph{much} better. Perhaps if the levels of complaints
 differ by building, the coefficient for the effect of traps on building does
 too. We can add this to our model and observe the fit.
 
-$$
-\text{complaints}_{b,t} \sim \text{Neg-Binomial-log}(\eta_{b,t}, \phi)  \\
-\eta_{b,t} = \alpha_b + \beta_b \, \texttt{traps}_{b,t} \\
-\alpha_b \sim \text{Normal}(\alpha + \texttt{building_data} \, \zeta, \sigma_{\alpha}) \\
-\beta_b \sim \text{Normal}(\beta + \texttt{building_data} \, \gamma, \sigma_{\beta})
-$$
+
+\begin{align*}
+\text{complaints}_{b,t} &\sim \text{Neg-Binomial-log}(\eta_{b,t}, \phi)  \\
+\eta_{b,t} &= \alpha_b + \beta_b \, \texttt{traps}_{b,t} \\
+\alpha_b &\sim \text{Normal}(\alpha + \texttt{building_data} \, \zeta, \sigma_{\alpha}) \\
+\beta_b &\sim \text{Normal}(\beta + \texttt{building_data} \, \gamma, \sigma_{\beta})
+\end{align*}
+
 
 Let's compile the model.
 
@@ -765,9 +762,9 @@ This can be a motivation for using an autoregressive prior for our monthly effec
 is as follows:
 
 $$
-\texttt{mo}_t \sim \text{Normal}(\phi \, \texttt{mo}_{t-1}, \sigma_\texttt{mo}) \\
-\phi \in [0,1]
+\texttt{mo}_t \sim \text{Normal}(\phi \, \texttt{mo}_{t-1}, \sigma_\texttt{mo}), \quad \phi \in [0,1]
 $$
+
 While we could allow $\phi \in [-1,1]$, we almost never see $\phi < 0$ in social science
 applications. We could relax this assumption and use priors to enforce our beliefs
 
