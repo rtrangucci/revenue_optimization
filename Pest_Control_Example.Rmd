@@ -515,7 +515,8 @@ fitted_model_NB <-
   )
 posterior_alpha_beta_NB <- 
   as.matrix(fitted_model_NB,
-            pars = c('alpha','beta',
+            pars = c('alpha',
+                     'beta',
                      'beta_super',
                      'beta_sq_foot',
                      'inv_prec')
@@ -534,6 +535,17 @@ true_alpha_beta_NB <-
 mcmc_recover_hist(posterior_alpha_beta_NB, true = true_alpha_beta_NB)
 ```
 
+
+```{r}
+y_rep <- rstan::extract(fitted_model_NB)$y_rep
+mean_inv_prec <- mean(posterior_alpha_beta_NB[,'inv_prec'])
+mean_y_rep <- colMeans(y_rep)
+std_resid <- (stan_dat_fake_NB$complaints - mean_y_rep) / sqrt(mean_y_rep + mean_y_rep^2*mean_inv_prec)
+qplot(mean_y_rep, std_resid) + hline_at(1) + hline_at(-1)
+```
+
+
+
 Fit the model to the real data.
 
 ```{r runNB}
@@ -545,8 +557,7 @@ Let's look at our predictions vs. the data.
 
 ```{r ppc-full}
 y_rep <- samps_NB$y_rep
-ppc_dens_overlay(stan_dat_simple$complaints, 
-                            y_rep[1:200,])
+ppc_dens_overlay(stan_dat_simple$complaints, y_rep[1:200,])
 ```
 
 These look OK, but let's look at the standardized residual plot.
