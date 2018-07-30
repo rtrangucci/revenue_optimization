@@ -291,8 +291,13 @@ mcmc_hist(as.matrix(fit_P_real_data, pars = c('alpha','beta')))
 
 As we expected, it appears the number of bait stations set in a building impacts the number of complaints about cockroaches that were made in the follwoing month. However, we still need to consider how well the model fits. 
 
-```{r marginal_PPC}
+```{r}
 y_rep <- as.matrix(fit_P_real_data, pars = "y_rep")
+prop_zero <- function(x) mean(x == 0)
+ppc_stat(y = stan_dat_simple$complaints, yrep = y_rep, stat = "prop_zero")
+```
+
+```{r marginal_PPC}
 ppc_dens_overlay(y = stan_dat_simple$complaints, y_rep[1:200,])
 ```
 This is a plot of the kernel densities of the observed data ($y$) and 200 simulations of $y$ from the posterior predictive distribution ($y_rep$). If the model was fitting the data well, there would be little difference between the observed density and the simulated density. However, as you can see here, the simulated density is not as disperse as the observed, and doesn't seem to capture the rate of zeros in the observed data. This indicates that the Poisson model may not be the best model to use for this data. Let's explore this further.
@@ -412,6 +417,7 @@ Then explore the fit.
 
 ```{r}
 y_rep <- as.matrix(fit_model_P_mult_real, pars = "y_rep")
+ppc_stat(y = stan_dat_simple$complaints, yrep = y_rep, stat = "prop_zero")
 ppc_dens_overlay(stan_dat_simple$complaints, y_rep[1:200,])
 ```
 This is a plot of... If the model was fitting well it would look like... As you can see here, we have ... which indicates that ...
@@ -557,6 +563,7 @@ Let's look at our predictions vs. the data.
 
 ```{r ppc-full}
 y_rep <- samps_NB$y_rep
+ppc_stat(y = stan_dat_simple$complaints, yrep = y_rep, stat = "prop_zero")
 ppc_dens_overlay(stan_dat_simple$complaints, y_rep[1:200,])
 ```
 
