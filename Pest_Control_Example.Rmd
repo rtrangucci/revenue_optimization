@@ -331,23 +331,21 @@ As we expected, it appears the number of bait stations set in a building impacts
 y_rep <- as.matrix(fit_P_real_data, pars = "y_rep")
 ppc_dens_overlay(y = stan_dat_simple$complaints, y_rep[1:200,])
 ```
-This is a plot of... If the model was fitting well it would look like... As you can see here, we have ... which indicates that ...
-
+This is a plot of the kernel densities of the observed data ($y$) and 200 simulations of $y$ from the posterior predictive distribution ($y_rep$). If the model was fitting the data well, there would be little difference between the observed density and the simulated density. However, as you can see here, the simulated density is not as disperse as the observed, and doesn't seem to capture the rate of zeros in the observed data. This indicates that the Poisson model may not be the best model to use for this data. Let's explore this further.
 
 ```{r}
 mean_y_rep <- colMeans(y_rep)
 std_resid <- (stan_dat_simple$complaints - mean_y_rep) / sqrt(mean_y_rep)
 qplot(mean_y_rep, std_resid) + hline_at(1) + hline_at(-1)
 ```
-This is a plot of... If the model was fitting well it would look like... As you can see here, we have ... which indicates that ...
-
+This is a plot of the standardised residuals of the observed vs predicted number of complaints. Ideally these would be centered around zero on the y-axis with the bulk of the residuals between -1 and 1 (1 standard deviation on the unit scale).  As you can see here, it looks as though we have more positive residuals than negative, which indicates that the model tends to underestimate the number of complaints that will be received. 
 ```{r}
 ppc_rootogram(stan_dat_simple$complaints, yrep = y_rep)
 ```
-This is a plot of... If the model was fitting well it would look like... As you can see here, we have ... which indicates that ...
+The rootogram is another useful plot to compare the observed vs expected number of complaints. This is a plot of the expected counts (continuous line) vs the observed counts (blue histogram). If the model was fitting well these would be relatively similar, however in this figure we can see the number of complaints is underestimated if there are few complaints, over-estimated for medium numbers of complaints and underestimated if there are a large number of complaints. 
 
-We can also view how the predicted number of complaints varies with the number of 
-traps: 
+We can also view how the predicted number of complaints varies with the number of traps. From this we can see that the model doesn't seem to fully capture the data.  
+
 
 ```{r}
 ppc_intervals(
@@ -479,8 +477,7 @@ ppc_intervals(
 
 ## Modeling count data : Negative Binomial outcome
 
-When we considered modelling the data using a Poisson, we saw that the residuals from the model fitted to the real data didn't
-conform to the residuals from the model fitted to the fake data. In particular the residuals from the real data fit appeared to have variances that were larger than means. This is one indication of over-dispersion, where the variance is larger than the mean. A Poisson model doesn't fit over-dispersed count data very well because the same parameter $\lambda$, controls both the expected counts and the variance of these counts. The natural alternative to this is the negative binomial model: 
+When we considered modelling the data using a Poisson, we saw that the model didn't appear to fit as well to the data as we would like. In particular the model underpredicted low and high numbers of complaints, and overpredicted the medium number of complaints. This is one indication of over-dispersion, where the variance is larger than the mean. A Poisson model doesn't fit over-dispersed count data very well because the same parameter $\lambda$, controls both the expected counts and the variance of these counts. The natural alternative to this is the negative binomial model:  
 
 $$
 \begin{align*}
@@ -619,7 +616,7 @@ Looks ok, but we still have some large residuals. This might be because we are c
 ppc_rootogram(stan_dat_simple$complaints, yrep = y_rep)
 ```
 
-The rootgram now looks much more plausible. We can tell this because... 
+he rootgram now looks much more plausible. We can tell this because now the expected number of complaints matches much closer to the observed number of complaints. 
 
 
 Check predictions by number of traps: 
