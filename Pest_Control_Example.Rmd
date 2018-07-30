@@ -534,22 +534,6 @@ true_alpha_beta_NB <-
 mcmc_recover_hist(posterior_alpha_beta_NB, true = true_alpha_beta_NB)
 ```
 
-[Note to Lauren and Jonah: This looks OK, but what's going on with the 
-intercept? I think we need to shift the intercept to deal with the effect from
-noncentered parameters, but I'm not sure. It looks like the posterior standard
-deviation is larger than the prior standard deviation. Not impossible, but 
-still odd for the overall intercept. Also, the 
-inverse precision parameter has almost no contraction, which is odd. We should
-figure this out before the class]
-
-```{r}
-y_rep <- rstan::extract(fitted_model_NB)$y_rep
-mean_inv_prec <- mean(posterior_alpha_beta_NB[,'inv_prec'])
-mean_y_rep <- colMeans(y_rep)
-std_resid <- (stan_dat_simple$complaints - mean_y_rep) / sqrt(mean_y_rep + mean_y_rep^2*mean_inv_prec)
-qplot(mean_y_rep, std_resid) + hline_at(1) + hline_at(-1)
-```
-
 Fit the model to the real data.
 
 ```{r runNB}
