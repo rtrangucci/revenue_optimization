@@ -126,42 +126,6 @@ ggplot(pest_data, aes(x = date, y = complaints, color = live_in_super == TRUE)) 
 ```
 
 
-
-
-[Note: I'm going to move this block to later in the document when we
-introduce hierarchical models, it's ok to leave here for now]
-
-Let's prep the data. Firstly to use the building variable in Stan we will need
-to trasnform it from a factor variable to an interger variable.
-
-```{r prep-data}
-N_months <- max(table(pest_data$building_id))
-pest_data <- pest_data %>%
-  mutate(building_fac = as.factor(building_id),
-         building_idx = as.integer(building_fac),
-         ids = rep(1:N_months, N_buildings),
-         mo_idx = lubridate::month(date))
-building_data <- 
-  pest_data[,c('building_idx','live_in_super', 'age_of_building', 'total_sq_foot',
-               'average_tenant_age', 'monthly_average_rent')] %>% unique() %>%
-  arrange(building_idx) %>% select(-building_idx) %>% as.matrix() %>% 
-  scale(scale=F) %>% sweep(MARGIN = 2, STATS=c(1,10,1e4,10,1e3),FUN = '/')
-stan_dat_hier <- 
-  with(pest_data, 
-        list(complaints = complaints,
-             traps = traps,
-             N = length(traps),
-             J = N_buildings,
-             M = N_months,
-             log_sq_foot = log(pest_data$total_sq_foot/1e4),
-             building_data = building_data[,-3],
-             mo_idx = as.integer(as.factor(date)),
-             K = 4,
-             building_idx = building_idx
-             )
-        )
-```
-
 The first question we might want to ask is whether the number of complaints per 
 building per month is a function of the number of bait stations per building per
 month. That requires only two variables, $\textrm{complaints}$ and 
@@ -644,7 +608,7 @@ ppc_stat_grouped(
 ### Hierarchical modeling
 #### Random intercepts for each building
 
-Previously we discussed that It appears that we aren't modeling the means well for each building. Let's add a hierarchical
+It appears that we aren't modeling the means well for each building. Let's add a hierarchical
 intercept parameter, $\alpha_b$ at the building level to our model. 
 
 \begin{align*}
@@ -656,12 +620,45 @@ intercept parameter, $\alpha_b$ at the building level to our model.
 In our stan model, $\alpha_b$ is the $b$-th element of the vector
 $\texttt{alpha}$ defined in the parameter vector. 
 
-We could also shove the building-only predictors into the model for 
+We'll also shove the building-only predictors into the model for 
 $\alpha_b$, like so:
 
 $$
 \alpha_b \sim \text{Normal}(\alpha + \zeta \, \texttt{building_data}_b, \sigma_{\alpha})
 $$
+
+We'll need to do some more data prep before we can fit our models. Firstly to
+use the building variable in Stan we will need to trasnform it from a factor
+variable to an interger variable.
+
+```{r prep-data}
+N_months <- max(table(pest_data$building_id))
+pest_data <- pest_data %>%
+  mutate(building_fac = as.factor(building_id),
+         building_idx = as.integer(building_fac),
+         ids = rep(1:N_months, N_buildings),
+         mo_idx = lubridate::month(date))
+building_data <- 
+  pest_data[,c('building_idx','live_in_super', 'age_of_building', 'total_sq_foot',
+               'average_tenant_age', 'monthly_average_rent')] %>% unique() %>%
+  arrange(building_idx) %>% select(-building_idx) %>% as.matrix() %>% 
+  scale(scale=F) %>% sweep(MARGIN = 2, STATS=c(1,10,1e4,10,1e3),FUN = '/')
+stan_dat_hier <- 
+  with(pest_data, 
+        list(complaints = complaints,
+             traps = traps,
+             N = length(traps),
+             J = N_buildings,
+             M = N_months,
+             log_sq_foot = log(pest_data$total_sq_foot/1e4),
+             building_data = building_data[,-3],
+             mo_idx = as.integer(as.factor(date)),
+             K = 4,
+             building_idx = building_idx
+             )
+        )
+```
+
 
 Let's compile the model. 
 
@@ -941,12 +938,13 @@ $$
 This equation says that the monthly effect in month $t$ is directly related to
 the last month's monthly effect. Given the description of the process above,
 it seems like there could be either positive or negative associations between
-the months, so we'll put a weakly informative prior that pushes the parameter $\phi$ towards
-0.
+the months, but there should be a bit more weight placed on positive 
+$\phi$s, so we'll put an informative prior that pushes the parameter $\phi$ towards
+0.5.
 
-One problem with a prior on $\phi$ is that Stan doesn't implement any densities
+Before we write our prior, however, we have a problem: Stan doesn't implement any densities
 that have support on $[-1,1]$. We can use variable transformation of a raw variable
-defined on $[0,1]$ to to give us a density on $[-1,1]$.
+defined on $[0,1]$ to to give us a density on $[-1,1]$. Specifically
 
 ```{r comp-NB-hier-mos, cache=T, results="hide", message=FALSE}
 comp_model_NB_hier_mos <- stan_model('stan_programs/hier_NB_regression_ncp_slopes_mod_mos.stan')
@@ -1009,7 +1007,7 @@ about how many traps to put in our buildings. We'll make a forecast for 6 months
 comp_rev <- stan_model('stan_programs/hier_NB_regression_ncp_slopes_mod_mos_predict.stan')
 ```
 
-```{r run-NB-hier-rev, cache=TRUE}
+```{r run-NB-hier-rev}
 stan_dat_hier$log_sq_foot_pred <- log(unique(pest_data$total_sq_foot)/1e4)
 stan_dat_hier$M_forward <- 12
 rev_model <- sampling(comp_rev, data = stan_dat_hier, chains = 4, cores = 4, iter = 2000)
