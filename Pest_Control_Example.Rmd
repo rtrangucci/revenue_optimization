@@ -78,7 +78,7 @@ The data is in a file called `building_data_20180724.RDS`. Let's load the data
 and see what the structure is:
 
 ```{r load-data}
-pest_data <- readRDS('data/building_data_20180727.RDS')
+pest_data <- readRDS('data/building_data_20180727_time_trend.RDS')
 str(pest_data)
 ```
 
@@ -331,7 +331,7 @@ As we expected, it appears the number of bait stations set in a building impacts
 y_rep <- as.matrix(fit_P_real_data, pars = "y_rep")
 ppc_dens_overlay(y = stan_dat_simple$complaints, y_rep[1:200,])
 ```
-This is a plot of the kernel densities of the observed data ($y$) and 200 simulations of $y$ from the posterior predictive distribution ($y_rep$). If the model was fitting the data well, there would be little difference between the observed density and the simulated density. However, as you can see here, the simulated density is not as disperse as the observed, and doesn't seem to capture the rate of zeros in the observed data. This indicates that the Poisson model may not be the best model to use for this data. Let's explore this further. 
+This is a plot of... If the model was fitting well it would look like... As you can see here, we have ... which indicates that ...
 
 
 ```{r}
@@ -339,14 +339,15 @@ mean_y_rep <- colMeans(y_rep)
 std_resid <- (stan_dat_simple$complaints - mean_y_rep) / sqrt(mean_y_rep)
 qplot(mean_y_rep, std_resid) + hline_at(1) + hline_at(-1)
 ```
-This is a plot of the standardised residuals of the observed vs predicted number of complaints. Ideally these would be centered around zero on the y-axis with the bulk of the residuals between -1 and 1 (1 standard deviation on the unit scale).  As you can see here, it looks as though we have more positive residuals than negative, which indicates that the model tends to underestimate the number of complaints that will be received. 
+This is a plot of... If the model was fitting well it would look like... As you can see here, we have ... which indicates that ...
 
 ```{r}
 ppc_rootogram(stan_dat_simple$complaints, yrep = y_rep)
 ```
-The rootogram is another useful plot to compare the observed vs expected number of complaints. This is a plot of the expected counts (continuous line) vs the observed counts (blue histogram). If the model was fitting well these would be relatively similar, however in this figure we can see the number of complaints is underestimated if there are few complaints, over-estimated for medium numbers of complaints and underestimated if there are a large number of complaints. 
+This is a plot of... If the model was fitting well it would look like... As you can see here, we have ... which indicates that ...
 
-We can also view how the predicted number of complaints varies with the number of traps. From this we can see that the predicted number of complaints doesn't seem to fully capture the observed number of complaints. 
+We can also view how the predicted number of complaints varies with the number of 
+traps: 
 
 ```{r}
 ppc_intervals(
@@ -363,7 +364,7 @@ Modeling the relationship between complaints and bait stations is the simplest m
 
 #### Data
 
-Using the property manager's intuition, we include two extra peices of information we know about the building - the (log of the) square floor space and whether there is a live in super or not - into both the simulated and real data. A quick test shows us that there appears to be a relationship between the square footage of the building and the number of complaints received:
+A quick test shows us that there appears to be a relationship between the square footage of the building and the number of complaints received:
 
 ```{r}
 sq_foot_dat_lm <- lm(log1p(complaints) ~ log(total_sq_foot), data = pest_data)
@@ -371,6 +372,8 @@ with(pest_data, plot(log(total_sq_foot), log1p(complaints)))
 abline(reg = sq_foot_dat_lm)
 ```
 
+
+Using the property manager's intuition, we include two extra peices of information we know about the building - the (log of the) square floor space and whether there is a live in super or not - into both the simulated and real data. 
  
 ```{r}
 stan_dat_simple$log_sq_foot <- log(pest_data$total_sq_foot/1e4)
@@ -449,20 +452,20 @@ Then explore the fit.
 y_rep <- as.matrix(fit_model_P_mult_real, pars = "y_rep")
 ppc_dens_overlay(stan_dat_simple$complaints, y_rep[1:200,])
 ```
-Again we plot the observed kernel density against the estimated kernel density and see that there are the same discrpencies as before.
+This is a plot of... If the model was fitting well it would look like... As you can see here, we have ... which indicates that ...
 
 ```{r}
 mean_y_rep <- colMeans(y_rep)
 std_resid <- (stan_dat_simple$complaints - mean_y_rep) / sqrt(mean_y_rep)
 qplot(mean_y_rep, std_resid) + hline_at(1) + hline_at(-1)
 ```
-We also see the same pattern of standardized residuals as with the single predictor model. 
+This is a plot of... If the model was fitting well it would look like... As you can see here, we have ... which indicates that ...
 
 
 ```{r}
 ppc_rootogram(stan_dat_simple$complaints, yrep = y_rep)
 ```
-Lastly when we consider the rootogram, we again see the same pattern as the model with a single predictor. 
+This is a plot of... If the model was fitting well it would look like... As you can see here, we have ... which indicates that ...
 
 
 ```{r}
@@ -476,7 +479,8 @@ ppc_intervals(
 
 ## Modeling count data : Negative Binomial outcome
 
-When we considered modelling the data using a Poisson, we saw that the model didn't appear to fit as well to the data as we would like. In particular the model underpredicted low and high numbers of complaints, and overpredicted the medium number of complaints. This is one indication of over-dispersion, where the variance is larger than the mean. A Poisson model doesn't fit over-dispersed count data very well because the same parameter $\lambda$, controls both the expected counts and the variance of these counts. The natural alternative to this is the negative binomial model: 
+When we considered modelling the data using a Poisson, we saw that the residuals from the model fitted to the real data didn't
+conform to the residuals from the model fitted to the fake data. In particular the residuals from the real data fit appeared to have variances that were larger than means. This is one indication of over-dispersion, where the variance is larger than the mean. A Poisson model doesn't fit over-dispersed count data very well because the same parameter $\lambda$, controls both the expected counts and the variance of these counts. The natural alternative to this is the negative binomial model: 
 
 $$
 \begin{align*}
@@ -615,7 +619,7 @@ Looks ok, but we still have some large residuals. This might be because we are c
 ppc_rootogram(stan_dat_simple$complaints, yrep = y_rep)
 ```
 
-The rootgram now looks much more plausible. We can tell this because now the expected number of complaints matches much closer to the observed number of complaints. 
+The rootgram now looks much more plausible. We can tell this because... 
 
 
 Check predictions by number of traps: 
@@ -821,7 +825,7 @@ The building means appear to be well-captured by our model.
 Predictions by number of traps:
 
 ```{r}
-ppc_intervals_grouped(
+ppc_intervals(
   y = stan_dat_hier$complaints, 
   yrep = y_rep,
   x = stan_dat_hier$traps
@@ -916,27 +920,36 @@ ppc_stat_grouped(
 ```
 
 There's definitely some pattern that we're not capturing. See October and May and June for examples.
-If we think about the sort of prior we want to use for this parameter, we might settle on
-an autoregressive prior.
+Therefore we might augment our model with a log-additive monthly effect, $\texttt{mo}_t$. 
 
-[This doesn't quite come out from any residuals because we have so few weeks of data]
+$$
+\text{complaints}_{b,t} \sim \text{Neg-Binomial-log}(\eta_{b,t}, \phi)  \\
+\eta_{b,t} = \alpha_b + \beta_b \, \texttt{traps}_{b,t} + \texttt{mo}_t
+$$
 
-We might be missing information in month indicators. It makes sense, when it gets colder
-out there might be less trash in the streets, which could mean fewer cockroaches are out
-and about rooting through the trash and ending up in our buildings.
+We have complete freedom over how to specify the prior for $\texttt{mo}_t$. There are 
+several competing factors for how the number of complaints might change over time. It makes
+sense that there might be more roaches in the environment during the summer, but we might 
+also expect that there is more roach control in the summer as well. Given that we're 
+modeling complaints, maybe after the first sighting of roaches in a building, residents are
+more vigilant, and thus complaints of roaches would increase.
 
 This can be a motivation for using an autoregressive prior for our monthly effects. The model
 is as follows:
 
 $$
-\texttt{mo}_t \sim \text{Normal}(\phi \, \texttt{mo}_{t-1}, \sigma_\texttt{mo}), \quad \phi \in [0,1]
+\texttt{mo}_t \sim \text{Normal}(\phi \, \texttt{mo}_{t-1}, \sigma_\texttt{mo}), \quad \phi \in [-1,1] \\
 $$
 
-While we could allow $\phi \in [-1,1]$, we almost never see $\phi < 0$ in social science
-applications. We could relax this assumption and use priors to enforce our beliefs
+This equation says that the monthly effect in month $t$ is directly related to
+the last month's monthly effect. Given the description of the process above,
+it seems like there could be either positive or negative associations between
+the months, so we'll put a weakly informative prior that pushes the parameter $\phi$ towards
+0.
 
-[Note to L/J: we should probably just use priors to encode our
-beliefs about positive autocorrelation this upon second thought]
+One problem with a prior on $\phi$ is that Stan doesn't implement any densities
+that have support on $[-1,1]$. We can use variable transformation of a raw variable
+defined on $[0,1]$ to to give us a density on $[-1,1]$.
 
 ```{r comp-NB-hier-mos, cache=T, results="hide", message=FALSE}
 comp_model_NB_hier_mos <- stan_model('stan_programs/hier_NB_regression_ncp_slopes_mod_mos.stan')
@@ -969,6 +982,26 @@ ppc_stat_grouped(
 
 As we can see, it appears that our monthly random intercept has captured a monthly
 pattern across all the buildings.
+
+```{r}
+mcmc_hist(
+  as.matrix(fitted_model_NB_hier_mos, pars = "phi_mo"), 
+  binwidth = 0.01
+)
+```
+
+```{r}
+ppc_intervals(
+  y = stan_dat_hier$complaints, 
+  yrep = y_rep,
+  x = stan_dat_hier$traps
+) + 
+  labs(x = "Number of traps", y = "Number of complaints")
+```
+
+It looks as if our model finally generates a reasonable posterior predictive
+distribution for all numbers of traps, and appropriately captures the tails of the 
+date generating process.
 
 ## Using our model: Cost forecasts
 
