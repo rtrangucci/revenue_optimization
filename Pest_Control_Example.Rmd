@@ -245,7 +245,7 @@ true_alpha_beta <- c(samps_dgp$alpha, samps_dgp$beta)
 mcmc_recover_hist(posterior_alpha_beta, true = true_alpha_beta)
 ```
 
-Then do Posterior Predictive Checks
+Then do Posterior Predictive Checks. One common check for regression models is to plot the residuals against the observed values for $y$. While this plot is what we would expect for a Poisson regression, it is relatively hard to interpret. 
 
 ```{r}
 y_rep <- as.matrix(fit_model_P, pars = "y_rep")
@@ -253,12 +253,12 @@ mean_y_rep <- colMeans(y_rep)
 std_resid <- (stan_dat_fake$complaints - mean_y_rep) / sqrt(mean_y_rep)
 qplot(mean_y_rep, std_resid) + hline_at(1) + hline_at(-1)
 ```
-This is a plot of... If the model was fitting well it would look like... As you can see here, we have ... which indicates that ... Finally look at the rootogram. 
+
+One alternative to this is a rootogram. This is a plot of the expected counts (continuous line) vs the observed counts (blue histogram). We can see the model fits well because the observed histogram matched the expected counts relatively well. 
 
 ```{r}
 ppc_rootogram(stan_dat_fake$complaints, yrep = y_rep)
 ```
-This is a plot of... If the model was fitting well it would look like... As you can see here, we have ... which indicates that ...
 
 ### Fit with real data 
 
