@@ -716,16 +716,39 @@ variable to an interger variable.
 
 ```{r prep-data}
 N_months <- max(table(pest_data$building_id))
+
+# Add some IDs for building and month
 pest_data <- pest_data %>%
-  mutate(building_fac = as.factor(building_id),
-         building_idx = as.integer(building_fac),
-         ids = rep(1:N_months, N_buildings),
-         mo_idx = lubridate::month(date))
-building_data <- 
-  pest_data[,c('building_idx','live_in_super', 'age_of_building', 'total_sq_foot',
-               'average_tenant_age', 'monthly_average_rent')] %>% unique() %>%
-  arrange(building_idx) %>% select(-building_idx) %>% as.matrix() %>% 
-  scale(scale=F) %>% sweep(MARGIN = 2, STATS=c(1,10,1e4,10,1e3),FUN = '/')
+  mutate(
+    building_fac = as.factor(building_id),
+    building_idx = as.integer(building_fac),
+    ids = rep(1:N_months, N_buildings),
+    mo_idx = lubridate::month(date)
+  )
+
+# Center and rescale the building specific data
+building_data <- pest_data %>%
+    select(
+      building_idx, 
+      live_in_super,
+      age_of_building,
+      total_sq_foot, 
+      average_tenant_age, 
+      monthly_average_rent
+    ) %>% 
+    unique() %>%
+    arrange(building_idx) %>% 
+    select(-building_idx) %>% 
+    mutate( # scale by constants
+      age_of_building = age_of_building / 10,
+      total_sq_foot = total_sq_foot / 10000,
+      average_tenant_age = average_tenant_age / 10,
+      monthly_average_rent = monthly_average_rent / 1000
+    ) %>%
+    scale(scale=FALSE) %>%   # subtract means but don't divide by SD 
+    as.matrix()
+
+# Make data list for Stan
 stan_dat_hier <- 
   with(pest_data, 
         list(complaints = complaints,
@@ -757,7 +780,13 @@ fitted_model_NB_hier <- sampling(comp_model_NB_hier, data = stan_dat_hier, chain
 
 We get a bunch of warnings from Stan about divergent transitions. Divergent transitions are...
 
-Divergent transitions are something we need to invesigate further. In this example we will see that we have divergent transitions because we need to reparameterize our model - i.e., we will retain the overall structure of the model, but transform some of the parameters so that it is easier for Stan to sample from the parameter space. Before we go through exactly how to do this reparameterization, we will first go through what indicates that this is something that reparamerization will be useful for. We will go through:
+Divergent transitions are something we need to invesigate further. In this
+example we will see that we have divergent transitions because we need to
+reparameterize our model - i.e., we will retain the overall structure of the
+model, but transform some of the parameters so that it is easier for Stan to
+sample from the parameter space. Before we go through exactly how to do this
+reparameterization, we will first go through what indicates that this is
+something that reparamerization will be useful for. We will go through:
 
 1. Examining the fitted parameter values, including the effective sample size
 2. Traces plots and pairs plots, which help us to see whether the divergent transitions have a pattern for any of the parameters. 
@@ -794,7 +823,10 @@ scatter_with_divs <- mcmc_scatter(
 scatter_with_divs
 ```
 
-What we have here is a funnel, which Stan can't handle because...
+What we have here is a cloud-like shape, with most of the divergences clustering
+towards the bottom. We'll see a bit later that we actually want this to look more
+like a funnel than a cloud, but the divergences are indicating that the sampler
+can't explore the narrowing neck of the funnel. 
 
 ```{r}
 parcoord_with_divs <- mcmc_parcoord(
@@ -804,7 +836,7 @@ parcoord_with_divs <- mcmc_parcoord(
 parcoord_with_divs
 ```
 
-Again, we see evidence that our problems concentrate when $\texttt{sigma_alpha}$ is small
+Again, we see evidence that our problems concentrate when $\texttt{sigma_alpha}$ is small.
 
 Instead, we should use the non-centered parameterization for $\alpha_b$. We
 define a vector of auxiliary variables in the parameters block,
@@ -860,7 +892,7 @@ scatter_no_divs <- mcmc_scatter(
   np = nuts_params(fitted_model_NB_hier_ncp)
 )
 bayesplot_grid(scatter_with_divs, scatter_no_divs, 
-               grid_args = list(ncol = 2), ylim = c(-11, -0.5))
+               grid_args = list(ncol = 2), ylim = c(-11, 1))
 ```
 
 ```{r}
