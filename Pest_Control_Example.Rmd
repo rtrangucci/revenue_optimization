@@ -78,7 +78,7 @@ The data is in a file called `building_data_20180724.RDS`. Let's load the data
 and see what the structure is:
 
 ```{r load-data}
-pest_data <- readRDS('data/building_data_20180727.RDS')
+pest_data <- readRDS('data/building_data_20180727_time_trend.RDS')
 str(pest_data)
 ```
 
@@ -157,7 +157,7 @@ stan_dat_hier <-
              building_data = building_data[,-3],
              mo_idx = as.integer(as.factor(date)),
              K = 4,
-             building_idx = building_id
+             building_idx = building_idx
              )
         )
 ```
@@ -825,7 +825,7 @@ The building means appear to be well-captured by our model.
 Predictions by number of traps:
 
 ```{r}
-ppc_intervals_grouped(
+ppc_intervals(
   y = stan_dat_hier$complaints, 
   yrep = y_rep,
   x = stan_dat_hier$traps
@@ -920,27 +920,36 @@ ppc_stat_grouped(
 ```
 
 There's definitely some pattern that we're not capturing. See October and May and June for examples.
-If we think about the sort of prior we want to use for this parameter, we might settle on
-an autoregressive prior.
+Therefore we might augment our model with a log-additive monthly effect, $\texttt{mo}_t$. 
 
-[This doesn't quite come out from any residuals because we have so few weeks of data]
+$$
+\text{complaints}_{b,t} \sim \text{Neg-Binomial-log}(\eta_{b,t}, \phi)  \\
+\eta_{b,t} = \alpha_b + \beta_b \, \texttt{traps}_{b,t} + \texttt{mo}_t
+$$
 
-We might be missing information in month indicators. It makes sense, when it gets colder
-out there might be less trash in the streets, which could mean fewer cockroaches are out
-and about rooting through the trash and ending up in our buildings.
+We have complete freedom over how to specify the prior for $\texttt{mo}_t$. There are 
+several competing factors for how the number of complaints might change over time. It makes
+sense that there might be more roaches in the environment during the summer, but we might 
+also expect that there is more roach control in the summer as well. Given that we're 
+modeling complaints, maybe after the first sighting of roaches in a building, residents are
+more vigilant, and thus complaints of roaches would increase.
 
 This can be a motivation for using an autoregressive prior for our monthly effects. The model
 is as follows:
 
 $$
-\texttt{mo}_t \sim \text{Normal}(\phi \, \texttt{mo}_{t-1}, \sigma_\texttt{mo}), \quad \phi \in [0,1]
+\texttt{mo}_t \sim \text{Normal}(\phi \, \texttt{mo}_{t-1}, \sigma_\texttt{mo}), \quad \phi \in [-1,1] \\
 $$
 
-While we could allow $\phi \in [-1,1]$, we almost never see $\phi < 0$ in social science
-applications. We could relax this assumption and use priors to enforce our beliefs
+This equation says that the monthly effect in month $t$ is directly related to
+the last month's monthly effect. Given the description of the process above,
+it seems like there could be either positive or negative associations between
+the months, so we'll put a weakly informative prior that pushes the parameter $\phi$ towards
+0.
 
-[Note to L/J: we should probably just use priors to encode our
-beliefs about positive autocorrelation this upon second thought]
+One problem with a prior on $\phi$ is that Stan doesn't implement any densities
+that have support on $[-1,1]$. We can use variable transformation of a raw variable
+defined on $[0,1]$ to to give us a density on $[-1,1]$.
 
 ```{r comp-NB-hier-mos, cache=T, results="hide", message=FALSE}
 comp_model_NB_hier_mos <- stan_model('stan_programs/hier_NB_regression_ncp_slopes_mod_mos.stan')
@@ -973,6 +982,26 @@ ppc_stat_grouped(
 
 As we can see, it appears that our monthly random intercept has captured a monthly
 pattern across all the buildings.
+
+```{r}
+mcmc_hist(
+  as.matrix(fitted_model_NB_hier_mos, pars = "phi_mo"), 
+  binwidth = 0.01
+)
+```
+
+```{r}
+ppc_intervals(
+  y = stan_dat_hier$complaints, 
+  yrep = y_rep,
+  x = stan_dat_hier$traps
+) + 
+  labs(x = "Number of traps", y = "Number of complaints")
+```
+
+It looks as if our model finally generates a reasonable posterior predictive
+distribution for all numbers of traps, and appropriately captures the tails of the 
+date generating process.
 
 ## Using our model: Cost forecasts
 

@@ -33,12 +33,13 @@ parameters {
   vector[K] gamma;
   real<lower=0> sigma_mos;
   vector[M] std_mos;
-  real<lower=0,upper=1> phi_mo;
+  real<lower=0,upper=1> phi_mo_raw;
 }
 transformed parameters {
   vector[J] alphas = alpha + building_data * zeta + sigma_alpha * std_alphas;
   vector[J] betas = beta + building_data * gamma + sigma_beta * std_betas;
   vector[M] mo = sigma_mos * std_mos;
+  real phi_mo = 2.0 * phi_mo_raw - 1.0;
   real prec = inv(inv_prec);
   mo[1] /= sqrt(1 - phi_mo * phi_mo);
   for (m in 2:M) 
@@ -56,11 +57,10 @@ model {
   zeta ~ normal(0, 1);
   gamma ~ normal(0, 1);
   inv_prec ~ normal(0, 1);
-  phi_mo ~ beta(5, 5);
+  phi_mo_raw ~ beta(10, 5);
   
   complaints ~ neg_binomial_2_log(alphas[building_idx] + betas[building_idx] .* traps 
-                                 + mo[mo_idx] + log_sq_foot,
-                               prec);
+                                 + mo[mo_idx] + log_sq_foot, prec);
 } 
 generated quantities {
   int y_rep[N];
