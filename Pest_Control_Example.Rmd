@@ -294,7 +294,7 @@ and printing the parameters. What do these tell us?
 print(fit_P_real_data, pars = c('alpha','beta'))
 ```
 
-```{r results_simple_P}
+```{r hist_simple_P}
 mcmc_hist(as.matrix(fit_P_real_data, pars = c('alpha','beta')))
 ```
 
@@ -680,9 +680,9 @@ ppc_intervals(
 Check predictions building by building:
 ```{r ppc-group_means}
 ppc_stat_grouped(
-  stan_dat_simple$complaints, 
-  y_rep, 
-  group = pest_data$building_idx, 
+  y = stan_dat_simple$complaints, 
+  yrep = y_rep, 
+  group = pest_data$building_id, 
   stat = 'mean'
 )
 ```
