@@ -184,7 +184,8 @@ the known parameter values? Before we start fitting our Poisson model to the
 real data, first let's generate some fake data that matches our assumptions
 about the data.
 
-First we will compile the Stan model (simple_poisson_regression_dgp.stan) that generated the fake data.
+First we will compile the Stan model (simple_poisson_regression_dgp.stan) that
+generated the fake data.
 
 ```{r , cache=T, results="hide", message=FALSE}
 comp_dgp_simple <- stan_model('stan_programs/simple_poisson_regression_dgp.stan')
@@ -219,7 +220,8 @@ str(stan_dat_fake)
 ```
 ### Fit the model to the fake data:
 
-Now we have the simulated data we fit a Stan model using it. First we need to compile the model (simple_poisson_regression.stan).
+Now we have the simulated data we fit a Stan model using it. First we need to
+compile the model (simple_poisson_regression.stan).
 
 ```{r , cache=T, results="hide", message=FALSE}
 comp_model_P <- stan_model('stan_programs/simple_poisson_regression.stan')
@@ -245,7 +247,10 @@ true_alpha_beta <- c(samps_dgp$alpha, samps_dgp$beta)
 mcmc_recover_hist(posterior_alpha_beta, true = true_alpha_beta)
 ```
 
-Then do Posterior Predictive Checks. One common check for regression models is to plot the residuals against the observed values for $y$. While this plot is what we would expect for a Poisson regression, it is relatively hard to interpret. 
+Then do Posterior Predictive Checks. One common check for regression models is
+to plot the residuals against the observed values for $y$. While this plot is
+what we would expect for a Poisson regression, it is relatively hard to
+interpret.
 
 ```{r}
 y_rep <- as.matrix(fit_model_P, pars = "y_rep")
@@ -254,7 +259,10 @@ std_resid <- (stan_dat_fake$complaints - mean_y_rep) / sqrt(mean_y_rep)
 qplot(mean_y_rep, std_resid) + hline_at(1) + hline_at(-1)
 ```
 
-One alternative to this is a rootogram. This is a plot of the expected counts (continuous line) vs the observed counts (blue histogram). We can see the model fits well because the observed histogram matched the expected counts relatively well. 
+One alternative to this is a rootogram. This is a plot of the expected counts
+(continuous line) vs the observed counts (blue histogram). We can see the model
+fits well because the observed histogram matched the expected counts relatively
+well.
 
 ```{r}
 ppc_rootogram(stan_dat_fake$complaints, yrep = y_rep)
@@ -263,8 +271,8 @@ ppc_rootogram(stan_dat_fake$complaints, yrep = y_rep)
 ### Fit with real data 
 
 Now we have seen that we can sensibly recover the parameters from simulated
-data. Next we can use this model with the real data that we observerd. We'll again
-pass the data to RStan as a list:
+data. Next we can use this model with the real data that we observerd. We'll
+again pass the data to RStan as a list:
 
 ```{r stan-data}
 stan_dat_simple <- list(
@@ -279,6 +287,7 @@ As we have already compiled the model, we can jump straight to sampling from it.
 ```{r fit_P_real_data, cache=T}
 fit_P_real_data <- sampling(comp_model_P, data = stan_dat_simple, chains = 4, cores =4 )
 ```
+
 and printing the parameters. What do these tell us? 
 
 ```{r results_simple_P}
@@ -289,32 +298,66 @@ print(fit_P_real_data, pars = c('alpha','beta'))
 mcmc_hist(as.matrix(fit_P_real_data, pars = c('alpha','beta')))
 ```
 
-As we expected, it appears the number of bait stations set in a building impacts the number of complaints about cockroaches that were made in the follwoing month. However, we still need to consider how well the model fits. 
+As we expected, it appears the number of bait stations set in a building impacts
+the number of complaints about cockroaches that were made in the following
+month. However, we still need to consider how well the model fits.
 
 ```{r}
 y_rep <- as.matrix(fit_P_real_data, pars = "y_rep")
-prop_zero <- function(x) mean(x == 0)
-ppc_stat(y = stan_dat_simple$complaints, yrep = y_rep, stat = "prop_zero")
 ```
 
 ```{r marginal_PPC}
 ppc_dens_overlay(y = stan_dat_simple$complaints, y_rep[1:200,])
 ```
-This is a plot of the kernel densities of the observed data ($y$) and 200 simulations of $y$ from the posterior predictive distribution ($y_rep$). If the model was fitting the data well, there would be little difference between the observed density and the simulated density. However, as you can see here, the simulated density is not as disperse as the observed, and doesn't seem to capture the rate of zeros in the observed data. This indicates that the Poisson model may not be the best model to use for this data. Let's explore this further.
+This is a plot of the kernel densities of the observed data ($y$) and 200
+simulations of $y$ from the posterior predictive distribution ($y_rep$). If the
+model was fitting the data well, there would be little difference between the
+observed density and the simulated density. However, as you can see here, the
+simulated density is not as disperse as the observed, and doesn't seem to
+capture the rate of zeros in the observed data. This indicates that the Poisson
+model may not be the best model to use for this data.
+
+Let's explore this further by looking directly at the proportion of zeros in the
+real data and predicted data.
+```{r}
+prop_zero <- function(x) mean(x == 0)
+ppc_stat(y = stan_dat_simple$complaints, yrep = y_rep, stat = "prop_zero")
+```
+The plot above shows the observed proportion of zeros (thick vertical line) and
+a histogram of the proportion of zeros in each of the simulated data sets. It is
+clear that the model does not capture this feature of the data well at all.
+
+This next plot is a plot of the standardised residuals of the observed vs predicted number of complaints. 
 
 ```{r}
 mean_y_rep <- colMeans(y_rep)
 std_resid <- (stan_dat_simple$complaints - mean_y_rep) / sqrt(mean_y_rep)
 qplot(mean_y_rep, std_resid) + hline_at(1) + hline_at(-1)
 ```
-This is a plot of the standardised residuals of the observed vs predicted number of complaints. Ideally these would be centered around zero on the y-axis with the bulk of the residuals between -1 and 1 (1 standard deviation on the unit scale).  As you can see here, it looks as though we have more positive residuals than negative, which indicates that the model tends to underestimate the number of complaints that will be received. 
+
+Ideally these would be centered around zero on the y-axis with the bulk of the
+residuals between -1 and 1 (1 standard deviation on the unit scale).  As you can
+see here, it looks as though we have more positive residuals than negative,
+which indicates that the model tends to underestimate the number of complaints
+that will be received.
+
+
+The rootogram is another useful plot to compare the observed vs expected number
+of complaints. This is a plot of the expected counts (continuous line) vs the
+observed counts (blue histogram):
+
 ```{r}
 ppc_rootogram(stan_dat_simple$complaints, yrep = y_rep)
 ```
-The rootogram is another useful plot to compare the observed vs expected number of complaints. This is a plot of the expected counts (continuous line) vs the observed counts (blue histogram). If the model was fitting well these would be relatively similar, however in this figure we can see the number of complaints is underestimated if there are few complaints, over-estimated for medium numbers of complaints and underestimated if there are a large number of complaints. 
 
-We can also view how the predicted number of complaints varies with the number of traps. From this we can see that the model doesn't seem to fully capture the data.  
+If the model was fitting well these would be relatively similar, however in this
+figure we can see the number of complaints is underestimated if there are few
+complaints, over-estimated for medium numbers of complaints and underestimated
+if there are a large number of complaints.
 
+We can also view how the predicted number of complaints varies with the number
+of traps. From this we can see that the model doesn't seem to fully capture the
+data.
 
 ```{r}
 ppc_intervals(
@@ -327,11 +370,14 @@ ppc_intervals(
 
 ### Is there more info we can use?
 
-Modeling the relationship between complaints and bait stations is the simplest model. However, the manager has told us that they expect there are a number of other reasons that one building might have more roach complaints than another. 
+Modeling the relationship between complaints and bait stations is the simplest
+model. However, the manager has told us that they expect there are a number of
+other reasons that one building might have more roach complaints than another.
 
 #### Data
 
-A quick test shows us that there appears to be a relationship between the square footage of the building and the number of complaints received:
+A quick test shows us that there appears to be a relationship between the square
+footage of the building and the number of complaints received:
 
 ```{r}
 sq_foot_dat_lm <- lm(log1p(complaints) ~ log(total_sq_foot), data = pest_data)
@@ -339,8 +385,9 @@ with(pest_data, plot(log(total_sq_foot), log1p(complaints)))
 abline(reg = sq_foot_dat_lm)
 ```
 
-
-Using the property manager's intuition, we include two extra peices of information we know about the building - the (log of the) square floor space and whether there is a live in super or not - into both the simulated and real data. 
+Using the property manager's intuition, we include two extra peices of
+information we know about the building - the (log of the) square floor space and
+whether there is a live in super or not - into both the simulated and real data.
  
 ```{r}
 stan_dat_simple$log_sq_foot <- log(pest_data$total_sq_foot/1e4)
@@ -350,7 +397,8 @@ stan_dat_simple$live_in_super <- pest_data$live_in_super
 
 ####Model
 
-Now we need a new Stan model that uses multiple predictors. Firs we have to compile multiple_poisson_regression_dgp.stan.
+Now we need a new Stan model that uses multiple predictors. Firs we have to
+compile multiple_poisson_regression_dgp.stan.
 
 ```{r compmultPDGP, cache=T, results="hide", message=FALSE}
 comp_dgp_multiple <- stan_model('stan_programs/multiple_poisson_regression_dgp.stan')
@@ -396,12 +444,14 @@ Fit the data with the model, and extract the alpha and beta parameters.
 fit_model_P_mult <- sampling(comp_model_P_mult, data = stan_dat_fake, chains = 4, cores = 4)
 posterior_alpha_beta <- as.matrix(fit_model_P_mult, pars = c('alpha','beta','beta_super','beta_sq_foot'))
 ```
-Then compare these parameters to the true parameters
+
+Then compare these parameters to the true parameters:
 
 ```{r}
 true_alpha_beta <- c(samps_dgp$alpha,samps_dgp$beta,samps_dgp$beta_super,samps_dgp$beta_sq_foot)
 mcmc_recover_hist(posterior_alpha_beta, true = true_alpha_beta)
 ```
+
 This is a plot of... If the model was fitting well it would look like... As you can see here, we have ... which indicates that ...
 
 ### Fit the real data
@@ -417,9 +467,14 @@ Then explore the fit.
 
 ```{r}
 y_rep <- as.matrix(fit_model_P_mult_real, pars = "y_rep")
-ppc_stat(y = stan_dat_simple$complaints, yrep = y_rep, stat = "prop_zero")
 ppc_dens_overlay(stan_dat_simple$complaints, y_rep[1:200,])
 ```
+
+Number of zeros:
+```{r}
+ppc_stat(y = stan_dat_simple$complaints, yrep = y_rep, stat = "prop_zero")
+```
+
 This is a plot of... If the model was fitting well it would look like... As you can see here, we have ... which indicates that ...
 
 ```{r}
@@ -447,7 +502,14 @@ ppc_intervals(
 
 ## Modeling count data : Negative Binomial outcome
 
-When we considered modelling the data using a Poisson, we saw that the model didn't appear to fit as well to the data as we would like. In particular the model underpredicted low and high numbers of complaints, and overpredicted the medium number of complaints. This is one indication of over-dispersion, where the variance is larger than the mean. A Poisson model doesn't fit over-dispersed count data very well because the same parameter $\lambda$, controls both the expected counts and the variance of these counts. The natural alternative to this is the negative binomial model:  
+When we considered modelling the data using a Poisson, we saw that the model
+didn't appear to fit as well to the data as we would like. In particular the
+model underpredicted low and high numbers of complaints, and overpredicted the
+medium number of complaints. This is one indication of over-dispersion, where
+the variance is larger than the mean. A Poisson model doesn't fit over-dispersed
+count data very well because the same parameter $\lambda$, controls both the
+expected counts and the variance of these counts. The natural alternative to
+this is the negative binomial model:
 
 $$
 \begin{align*}
@@ -458,8 +520,10 @@ $$
 $$
 
 In Stan the negative binomial mass function we'll use is called 
-$\texttt{neg_binomial_2_log}(\text{ints} \, y, \text{reals} \, \eta, \text{reals} \, \phi)$ in Stan. Like the `poisson_log` function, this negative binomial mass function that is parameterized in terms of its 
-log-mean, $\eta$, but it also has a precision $\phi$ such that
+$\texttt{neg_binomial_2_log}(\text{ints} \, y, \text{reals} \, \eta, \text{reals} \, \phi)$ 
+in Stan. Like the `poisson_log` function, this negative binomial mass function
+that is parameterized in terms of its log-mean, $\eta$, but it also has a
+precision $\phi$ such that
 
 $$
 \mathbb{E}[y] \, = \lambda = \exp(\eta)
@@ -468,7 +532,8 @@ $$
 $$
 \text{Var}[y] = \lambda + \lambda^2/\phi = \exp(\eta) + \exp(\eta)^2 / \phi.
 $$ 
-As $\phi$ gets larger the term $\lambda^2 / \phi$ gets smaller and the negative-binomial gets closer and closer to the Poisson.
+As $\phi$ gets larger the term $\lambda^2 / \phi$ gets smaller and the
+negative-binomial gets closer and closer to the Poisson.
 
 
 ###Fake data fit: Multiple NB regression
@@ -477,7 +542,9 @@ As $\phi$ gets larger the term $\lambda^2 / \phi$ gets smaller and the negative-
 comp_dgp_multiple_NB <- stan_model('stan_programs/multiple_NB_regression_dgp.stan')
 ```
 
-We're going to generate one draw from the fake data model so we can use the data to fit our model and compare the known values of the parameters to the posterior density of the parameters.
+We're going to generate one draw from the fake data model so we can use the data
+to fit our model and compare the known values of the parameters to the posterior
+density of the parameters.
 
 ```{r fake_data_dgp_NB}
 fitted_model_dgp_NB <-
@@ -511,7 +578,9 @@ Compile the inferential model.
 comp_model_NB <- stan_model('stan_programs/multiple_NB_regression.stan')
 ```
 
-Now we run our NB regression over the fake data and extract the samples to examine posterior predictive checks and to check whether we've sufficiently recovered our known parameters, $\texttt{alpha}$ $\texttt{beta}$.
+Now we run our NB regression over the fake data and extract the samples to
+examine posterior predictive checks and to check whether we've sufficiently
+recovered our known parameters, $\texttt{alpha}$ $\texttt{beta}$.
 
 ```{r runNBoverfake}
 fitted_model_NB <- 
@@ -529,7 +598,8 @@ posterior_alpha_beta_NB <-
   )
 ```
 
-Construct the vector of true values from your simulated dataset and compare to the recovered parameters. 
+Construct the vector of true values from your simulated dataset and compare to
+the recovered parameters.
 ```{r}
 true_alpha_beta_NB <- 
   c(samps_dgp_NB$alpha,
@@ -563,9 +633,16 @@ Let's look at our predictions vs. the data.
 
 ```{r ppc-full}
 y_rep <- samps_NB$y_rep
-ppc_stat(y = stan_dat_simple$complaints, yrep = y_rep, stat = "prop_zero")
 ppc_dens_overlay(stan_dat_simple$complaints, y_rep[1:200,])
 ```
+
+And let's check if the negative binomial model does a better job capturing
+the number of zeros: 
+
+```{r}
+ppc_stat(y = stan_dat_simple$complaints, yrep = y_rep, stat = "prop_zero")
+```
+
 
 These look OK, but let's look at the standardized residual plot.
 
@@ -576,13 +653,17 @@ std_resid <- (stan_dat_simple$complaints - mean_y_rep) / sqrt(mean_y_rep + mean_
 qplot(mean_y_rep, std_resid) + hline_at(1) + hline_at(-1)
 ```
 
-Looks ok, but we still have some large residuals. This might be because we are currently ignoring that the data are clustered by buildings, and different buildings might have different overall probability of roaches. 
+Looks ok, but we still have some large residuals. This might be because we are
+currently ignoring that the data are clustered by buildings, and different
+buildings might have different overall probability of roaches.
 
 ```{r}
 ppc_rootogram(stan_dat_simple$complaints, yrep = y_rep)
 ```
 
-he rootgram now looks much more plausible. We can tell this because now the expected number of complaints matches much closer to the observed number of complaints. 
+The rootgram now looks much more plausible. We can tell this because now the
+expected number of complaints matches much closer to the observed number of
+complaints.
 
 
 Check predictions by number of traps: 
@@ -610,8 +691,8 @@ ppc_stat_grouped(
 ### Hierarchical modeling
 #### Random intercepts for each building
 
-It appears that we aren't modeling the means well for each building. Let's add a hierarchical
-intercept parameter, $\alpha_b$ at the building level to our model. 
+It appears that we aren't modeling the means well for each building. Let's add a
+hierarchical intercept parameter, $\alpha_b$ at the building level to our model.
 
 \begin{align*}
 \text{complaints}_{b,t} &\sim \text{Neg-Binomial-log}(\eta_{b,t}, \phi) \\
