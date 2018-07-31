@@ -21,32 +21,32 @@ data {
 }
 parameters {
   real alpha;
-  real<lower=0> sigma_alpha;
-  vector[J] alphas;
+  real<lower=0> sigma_mu;
+  vector[J] mu;
   real beta;
-  real<lower=0> inv_prec;
+  real<lower=0> inv_phi;
   vector[K] zeta;
 }
 transformed parameters {
-  real prec = inv(inv_prec);
+  real phi = inv(inv_phi);
 }
 model {
   beta ~ normal(0, 1);
   zeta ~ normal(0, 1);
-  alphas ~ normal(alpha + building_data * zeta, sigma_alpha);
-  sigma_alpha ~ normal(0, 1);
+  mu ~ normal(alpha + building_data * zeta, sigma_mu);
+  sigma_mu ~ normal(0, 1);
   alpha ~ normal(0, 1);
-  inv_prec ~ normal(0, 1);
+  inv_phi ~ normal(0, 1);
   
-  complaints ~ neg_binomial_2_log(alphas[building_idx] + beta * traps 
+  complaints ~ neg_binomial_2_log(mu[building_idx] + beta * traps 
                                + log_sq_foot,
-                               prec);
+                               phi);
 } 
 generated quantities {
   int y_rep[N];
   
   for (n in 1:N) 
-    y_rep[n] = neg_binomial_2_log_safe_rng(alphas[building_idx[n]] + beta * traps[n]
+    y_rep[n] = neg_binomial_2_log_safe_rng(mu[building_idx[n]] + beta * traps[n]
                                           + log_sq_foot[n],
-                                          prec);
+                                          phi);
 }

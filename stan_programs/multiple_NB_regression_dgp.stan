@@ -10,16 +10,15 @@ generated quantities {
   int complaints[N];
   real alpha = normal_rng(0.5, 0.25);
   real beta = -fabs(normal_rng(0, 0.5));
-  real beta_sq_foot = normal_rng(0, 0.5);
   real beta_super = normal_rng(-0.5, 0.5);
-  real inv_prec = fabs(normal_rng(0,1));
+  real inv_phi = fabs(normal_rng(0,1));
   
   for (n in 1:N) {
     log_sq_foot[n] = normal_rng(1, 1);
     live_in_super[n] = bernoulli_rng(0.5);
     traps[n] = poisson_rng(8);
-    complaints[n] = neg_binomial_2_log_rng(alpha + beta_sq_foot * log_sq_foot[n] 
+    complaints[n] = neg_binomial_2_log_rng(alpha + log_sq_foot[n] 
                                + beta * traps[n] 
-                               + beta_super * live_in_super[n], inv(inv_prec));
+                               + beta_super * live_in_super[n], inv(inv_phi));
   }
 }
