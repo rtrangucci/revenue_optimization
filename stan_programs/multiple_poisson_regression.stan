@@ -15,11 +15,11 @@ data {
 }
 parameters {
   real alpha;
-  real<upper=0> beta;
+  real beta;
   real beta_super;
 }
 model {
-  beta ~ normal(0, 0.5);
+  beta ~ normal(-0.25, 1);
   alpha ~ normal(0, 10);
   beta_super ~ normal(0, 0.5);
   

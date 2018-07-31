@@ -218,6 +218,8 @@ str(stan_dat_fake)
 ```
 ### Fit the model to the fake data:
 
+MOTIVATE INFORMATIVE PRIOR ON BETA
+
 Now we have the simulated data we fit a Stan model using it. First we need to
 compile the model (simple_poisson_regression.stan).
 
@@ -722,7 +724,7 @@ ppc_stat_grouped(
 )
 ```
 
-The building-level mean for 26, 62, 70 and to a lesser extent 5 and 13 aren't
+The building-level mean for 26, 62, 70 and to a lesser extent 45 and 13 aren't
 modeled well. This indicates that there might be some unobserved building-level
 variation that we're not capturing with the current model.
 
@@ -1053,6 +1055,13 @@ posterior distribution for $\texttt{sigma_kappa}$.
 ```{r}
 mcmc_hist(
   as.matrix(fitted_model_NB_hier_slopes, pars = "sigma_kappa"), 
+  binwidth = 0.005
+)
+```
+
+```{r}
+mcmc_hist(
+  as.matrix(fitted_model_NB_hier_slopes, pars = "beta"), 
   binwidth = 0.005
 )
 ```

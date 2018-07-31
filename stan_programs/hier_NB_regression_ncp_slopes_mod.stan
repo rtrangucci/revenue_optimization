@@ -36,7 +36,7 @@ transformed parameters {
   real phi = inv(inv_phi);
 }
 model {
-  beta ~ normal(0, 1);
+  beta ~ normal(-0.25, 1);
   mu_raw ~ normal(0,1) ;
   kappa_raw ~ normal(0,1) ;
   sigma_mu ~ normal(0, 1);

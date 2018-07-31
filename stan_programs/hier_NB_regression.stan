@@ -31,7 +31,7 @@ transformed parameters {
   real phi = inv(inv_phi);
 }
 model {
-  beta ~ normal(0, 1);
+  beta ~ normal(-0.25, 1);
   zeta ~ normal(0, 1);
   mu ~ normal(alpha + building_data * zeta, sigma_mu);
   sigma_mu ~ normal(0, 1);

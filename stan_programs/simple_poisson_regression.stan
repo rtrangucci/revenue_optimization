@@ -16,10 +16,10 @@ transformed data {
 }
 parameters {
   real alpha;
-  real<upper=0> beta;
+  real beta;
 }
 model {
-  beta ~ normal(0, 0.5);
+  beta ~ normal(-0.25, 1);
   alpha ~ normal(4, 2);
   complaints ~ poisson_log(alpha + beta * traps_num);
   /*
