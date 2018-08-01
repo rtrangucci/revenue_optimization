@@ -1,10 +1,11 @@
 ---
 title: "Pest Control"
-author: "Lauren Kennedy, Jonah Gabry, & Rob Trangucci"
-date: "July 23, 2018"
+author: "A Case Study in Bayesian Workflow"
+date: "`r Sys.Date()`"
 output:
-  pdf_document: default
-  html_document: default
+  html_document:
+    toc: true
+    toc_depth: 2
 ---
 
 ## Setup
@@ -101,7 +102,7 @@ N_buildings <- length(unique(pest_data$building_id))
 N_buildings
 ```
 
-So far, so good, we've been given data for `r N_buildings` buildings.
+And make some plots of the raw data: 
 
 ```{r data-plots}
 ggplot(pest_data, aes(x = complaints)) + 
@@ -742,7 +743,7 @@ $$
 $$
 
 In our Stan model, $\mu_b$ is the $b$-th element of the vector
-$\texttt{mu}$ defined as a length `r N_buildings` vector. 
+$\texttt{mu}$ which has one element per building.
 
 One of our predictors varies only by building, so we can rewrite the above model 
 more efficiently like so:
@@ -756,7 +757,7 @@ $$
 We have more information at the building level as well, like the average age of
 the residents, the average age of the buildings, and the average per-apartment
 monthly rent so we can add that data into a matrix called
-$\texttt{building_data}$, which will have `r N_buildings` rows and four columns:
+$\texttt{building_data}$, which will have one row per building and four columns:
 * live_in_super
 * age_of_building
 * average_tentant_age
