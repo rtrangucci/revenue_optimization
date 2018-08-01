@@ -10,8 +10,14 @@ output:
 
 ## Setup
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+```{r setup}
+knitr::opts_chunk$set(
+  echo = TRUE, 
+  dev = "png",
+  dpi = 150,
+  fig.align = "center",
+  comment = NA
+)
 library(rstan)
 library(dplyr)
 library(reshape2)
@@ -26,38 +32,49 @@ set.seed(1123)
 
 ## The problem
 
+### Background
+
 Let's say that you're a data scientist working as an independent contractor.
 You're contacted by the property manager of a large property network in New York
-City. They explain that they are having an issue with the number of cockroach
-complaints that they receive from their buildings. Previously they have offered
-monthly visits from a pest inspector as a solution to this problem. While this
-is the default solution of many property managers in NYC, the tenants are
-rarely home when the inpector visits, and so the manager reasons that this is a
-relatively expensive solution that is currently not very effective.
+City. They explain that they are concerned about the number of roach complaints
+that they receive from their buildings. Previously they have offered monthly
+visits from a pest inspector as a solution to this problem. While this is the
+default solution of many property managers in NYC, the tenants are rarely home
+when the inpector visits, and so the manager reasons that this is a relatively
+expensive solution that is currently not very effective.
 
-One alternative to this problem is to deploy long term bait stations. In this 
-alternative child and pet safe bait stations are installed throughout the 
-apartment building. Cockroaches obtain quick acting poison from these stations 
-distribute it throughout the colony. The manufactorer for these bait stations 
-provides some indication of the space to bait efficacy, but the manager suspects
-that this guidance was not calculated for NYC roaches. NYC roaches, the manager 
-rationalises, have more hustle than traditional roaches; and NYC buildings are 
-built differently to other common domestic buildings in the US. This is 
-particularly important as the unit cost for each bait station per year is quite
-high.
+One alternative to this problem is to deploy long term bait stations. In this
+alternative, child and pet safe bait stations are installed throughout the
+apartment building. Cockroaches obtain quick acting poison from these stations
+and distribute it throughout the colony. The manufacturer of these bait stations
+provides some indication of the space-to-bait efficacy, but the manager suspects
+that this guidance was not calculated with NYC roaches in mind. NYC roaches, the
+manager rationalizes, have more hustle than traditional roaches; and NYC
+buildings are built differently than other common residential buildings in the
+US. This is particularly important as the unit cost for each bait station per
+year is quite high.
 
-The manager wishes to employ your services to help them to optimize the number 
-of roach bait stations they should place in each of their buildings in order to 
-minimise both the number of cockroach complaints and expenditure on pest 
-control. They have randomly selected buildings. At the beginning
-of each month, a pest inspector randomly places a number of bait stations 
-throughout the building, without knowledge of the current cockroach levels in 
-the building. At the end of the month, the manager records the total number of 
-cockroach complaints in that building. Ideally, the manager would like to 
-determine the optimal number of traps ($\textrm{traps}$) that balances the lost
-revenue ($R$) that complaints ($\textrm{complaints}$) generate with the all-in
-cost of maintaining the traps ($\textrm{TC}$). Luckily, we're up to the task! We
-would formalize the problem like so:
+### The goal
+
+The manager wishes to employ your services to help them to find the optimal
+number of roach bait stations they should place in each of their buildings in
+order to minimize the number of cockroach complaints while also keeping
+expenditure on pest control affordable. 
+
+A subset of the company's buildings have been randomly selected for an experiment: 
+
+* At the beginning of each month, a pest inspector randomly places a number of
+bait stations throughout the building, without knowledge of the current
+cockroach levels in the building
+* At the end of the month, the manager records
+the total number of cockroach complaints in that building. 
+* The manager would like to determine the optimal number of traps ($\textrm{traps}$) that
+balances the lost revenue ($R$) that complaints ($\textrm{complaints}$) generate
+with the all-in cost of maintaining the traps ($\textrm{TC}$). 
+
+Fortunately, Bayesian data analysis provides a coherent framework for us to tackle this problem.
+
+Formally, we are interested in finding
 
 $$
 \arg\max_{\textrm{traps} \in \mathbb{N}} \mathbb{E}_{\text{complaints}}[R(\textrm{complaints}(\textrm{traps})) - \textrm{TC}(\textrm{traps})]
@@ -75,8 +92,8 @@ of the number of traps.
 
 ## The data
 
-The data is in a file called `building_data_20180724.RDS`. Let's load the data
-and see what the structure is:
+The data provided to us is in a file called `building_data_20180724.RDS`. Let's
+load the data and see what the structure is:
 
 ```{r load-data}
 pest_data <- readRDS('data/building_data_20180727_time_trend.RDS')
@@ -84,16 +101,17 @@ str(pest_data)
 ```
 
 We have access to the following fields: 
-* complaints: Number of complaints per building per month
-* building_id: The unique building identifier
-* traps: The number of traps used per month per building
-* date: The date at which the number of complaints are recorded
-* live_in_super: An indicator for whether the building as a live-in super
-* age_of_building: The age of the building
-* total_sq_foot: The total square footage of the building
-* average_tenant_age: The average age of the tenants per building
-* monthly_average_rent: The average monthly rent per building
-* floors: The number of floors per building
+
+* `complaints`: Number of complaints per building per month
+* `building_id`: The unique building identifier
+* `traps`: The number of traps used per month per building
+* `date`: The date at which the number of complaints are recorded
+* `live_in_super`: An indicator for whether the building as a live-in super
+* `age_of_building`: The age of the building
+* `total_sq_foot`: The total square footage of the building
+* `average_tenant_age`: The average age of the tenants per building
+* `monthly_average_rent`: The average monthly rent per building
+* `floors`: The number of floors per building
 
 First, let's see how many buildings we have data for:
 
@@ -113,12 +131,14 @@ ggplot(pest_data, aes(x = traps, y = complaints)) +
 
 ggplot(pest_data, aes(x = traps, y = complaints, color = live_in_super == TRUE)) + 
   geom_jitter()
+```
 
+```{r, data-plots-ts, fig.width = 6, fig.height = 8}
 ggplot(pest_data, aes(x = date, y = complaints, color = live_in_super == TRUE)) + 
   geom_line(aes(linetype = "Number of complaints")) + 
   geom_point(color = "black") + 
   geom_line(aes(y = traps, linetype = "Number of traps"), color = "black", size = 0.25) + 
-  facet_wrap(~building_id, scales = "free", ncol = 5) + 
+  facet_wrap(~building_id, scales = "free", ncol = 2, labeller = label_both) + 
   scale_x_date(name = "Month", date_labels = "%b") + 
   scale_y_continuous(name = "", limits = range(pest_data$complaints)) + 
   scale_linetype_discrete(name = "") + 
@@ -186,7 +206,7 @@ about the data.
 First we will compile the Stan model (simple_poisson_regression_dgp.stan) that
 generated the fake data.
 
-```{r , cache=T, results="hide", message=FALSE}
+```{r , cache=TRUE, results="hide", message=FALSE}
 comp_dgp_simple <- stan_model('stan_programs/simple_poisson_regression_dgp.stan')
 ```
 
@@ -224,7 +244,7 @@ MOTIVATE INFORMATIVE PRIOR ON BETA
 Now we have the simulated data we fit a Stan model using it. First we need to
 compile the model (simple_poisson_regression.stan).
 
-```{r , cache=T, results="hide", message=FALSE}
+```{r , cache=TRUE, results="hide", message=FALSE}
 comp_model_P <- stan_model('stan_programs/simple_poisson_regression.stan')
 ```
 
@@ -248,7 +268,14 @@ true_alpha_beta <- c(samps_dgp$alpha, samps_dgp$beta)
 mcmc_recover_hist(posterior_alpha_beta, true = true_alpha_beta)
 ```
 
-Then do Posterior Predictive Checks. One common check for regression models is
+It's possible we dont' do a great job recovering the parameters here simply
+because we're simulating so few observations that the posterior uncertainty
+remains rather large. If we did the simulation with many more observations the
+parameters would be estimated much more precisely.
+
+Next we check some [Posterior Predictive Checks (PPCs)](http://mc-stan.org/bayesplot/articles/graphical-ppcs.html). 
+
+One common check for regression models is
 to plot the residuals against the observed values for $y$. While this plot is
 what we would expect for a Poisson regression, it is relatively hard to
 interpret.
@@ -288,7 +315,7 @@ stan_dat_simple <- list(
 
 As we have already compiled the model, we can jump straight to sampling from it.
 
-```{r fit_P_real_data, cache=T}
+```{r fit_P_real_data, cache=TRUE}
 fit_P_real_data <- sampling(comp_model_P, data = stan_dat_simple, chains = 4, cores =4 )
 ```
 
@@ -313,13 +340,14 @@ y_rep <- as.matrix(fit_P_real_data, pars = "y_rep")
 ```{r marginal_PPC}
 ppc_dens_overlay(y = stan_dat_simple$complaints, y_rep[1:200,])
 ```
-This is a plot of the kernel densities of the observed data ($y$) and 200 
-simulations of $y$ from the posterior predictive distribution ($y_rep$). If the 
-model was fitting the data well, there would be little difference between the 
-observed density and the simulated density. However, as you can see here, the 
-simulated density is not as dispersed as the kernel density of the observed
-data, and doesn't seem to capture the rate of zeros in the observed data. This
-indicates that the Poisson model may not be the best model to use for this data.
+This is a plot of the kernel density estimates of the observed data ($y$,
+thicker curve) and 200 simulated data sets ($y_{rep}$, thin curves) from the
+posterior predictive distribution. If the model was fitting the data well, there
+would be little difference between the observed density and the simulated
+density. However, as you can see here, the simulated density is not as dispersed
+as the kernel density of the observed data, and doesn't seem to capture the rate
+of zeros in the observed data. This indicates that the Poisson model may not be
+the best model to use for this data.
 
 Let's explore this further by looking directly at the proportion of zeros in the
 real data and predicted data.
@@ -433,7 +461,7 @@ stan_dat_simple$live_in_super <- pest_data$live_in_super
 Now we need a new Stan model that uses multiple predictors. Firs we have to
 compile multiple_poisson_regression_dgp.stan.
 
-```{r compmultPDGP, cache=T, results="hide", message=FALSE}
+```{r compmultPDGP, cache=TRUE, results="hide", message=FALSE}
 comp_dgp_multiple <- stan_model('stan_programs/multiple_poisson_regression_dgp.stan')
 ```
 
@@ -467,7 +495,7 @@ stan_dat_fake <- list(
 
 And compile the model to fit this data with. 
 
-```{r, cache=T, results="hide", message=FALSE}
+```{r, cache=TRUE, results="hide", message=FALSE}
 comp_model_P_mult <- stan_model('stan_programs/multiple_poisson_regression.stan')
 ```
 
@@ -572,7 +600,7 @@ negative-binomial gets closer and closer to the Poisson.
 
 ###Fake data fit: Multiple NB regression
 
-```{r , cache=T, results="hide", message=FALSE}
+```{r , cache=TRUE, results="hide", message=FALSE}
 comp_dgp_multiple_NB <- stan_model('stan_programs/multiple_NB_regression_dgp.stan')
 ```
 
@@ -608,7 +636,7 @@ stan_dat_fake_NB <- list(
 
 Compile the inferential model.
 
-```{r , cache=T, results="hide", message=FALSE}
+```{r , cache=TRUE, results="hide", message=FALSE}
 comp_model_NB <- stan_model('stan_programs/multiple_NB_regression.stan')
 ```
 
@@ -725,9 +753,9 @@ ppc_stat_grouped(
 )
 ```
 
-The building-level mean for 26, 62, 70 and to a lesser extent 45 and 13 aren't
-modeled well. This indicates that there might be some unobserved building-level
-variation that we're not capturing with the current model.
+Some of the building-level means aren't modeled well. This indicates that there
+might be some unobserved building-level variation that we're not capturing with
+the current model.
 
 ### Hierarchical modeling
 #### Random intercepts for each building
@@ -827,7 +855,7 @@ stan_dat_hier <-
 
 Let's compile the model. 
 
-```{r comp-NB-hier, cache=T, results="hide", message=FALSE}
+```{r comp-NB-hier, cache=TRUE, results="hide", message=FALSE}
 comp_model_NB_hier <- stan_model('stan_programs/hier_NB_regression.stan')
 ```
 
@@ -1034,7 +1062,7 @@ $$
 
 Let's compile the model.
 
-```{r comp-NB-hier-slopes, cache=T, results="hide", message=FALSE}
+```{r comp-NB-hier-slopes, cache=TRUE, results="hide", message=FALSE}
 comp_model_NB_hier_slopes <- stan_model('stan_programs/hier_NB_regression_ncp_slopes_mod.stan')
 ```
 
@@ -1050,8 +1078,8 @@ fitted_model_NB_hier_slopes <-
   )
 ```
 
-To see if the model infers building-to-building differences in, we can plot a histogram of our marginal
-posterior distribution for $\texttt{sigma_kappa}$. 
+To see if the model infers building-to-building differences in, we can plot a
+histogram of our marginal posterior distribution for `sigma_kappa`.
 
 ```{r}
 mcmc_hist(
@@ -1094,7 +1122,7 @@ ppc_stat_grouped(
   yrep = y_rep, 
   group = stan_dat_hier$mo_idx, 
   stat = 'mean'
-) + xlim(0, 9)
+) + xlim(0, 11)
 ```
 
 There's definitely some pattern that we're not capturing. See May, August,
@@ -1165,7 +1193,7 @@ $$
 \texttt{mo}_t \sim \text{Normal}\left(\rho \, \texttt{mo}_{t-1}, \sigma_\texttt{mo}\right) \forall t > 1
 $$
 
-```{r comp-NB-hier-mos, cache=T, results="hide", message=FALSE}
+```{r comp-NB-hier-mos, cache=TRUE, results="hide", message=FALSE}
 comp_model_NB_hier_mos <- stan_model('stan_programs/hier_NB_regression_ncp_slopes_mod_mos.stan')
 ```
 
@@ -1230,7 +1258,7 @@ date generating process.
 We've fitted a nice model, so we can go ahead an use the model to help us make a decision
 about how many traps to put in our buildings. We'll make a forecast for 6 months forward.
 
-```{r comp-rev, cache=T, results="hide", message=FALSE}
+```{r comp-rev, cache=TRUE, results="hide", message=FALSE}
 comp_rev <- stan_model('stan_programs/hier_NB_regression_ncp_slopes_mod_mos_predict.stan')
 ```
 
@@ -1266,7 +1294,7 @@ out. They're a bit more expensive, so we've put their cost at \$30 / hour. Each
 well. The marginal person-person hours above five traps are at the higher
 pest-control-labor rate.
 
-```{r rev-curves}
+```{r rev-curves, fig.width = 6, fig.height = 8}
 # extract as a list for convenience below
 samps_rev <- rstan::extract(rev_model)
 
@@ -1288,7 +1316,7 @@ profit_df <- data.frame(profit = as.vector(t(mean_profit)), lower = as.vector(t(
 ggplot(data = profit_df, aes(x = traps, y = profit)) +
   geom_ribbon(aes(ymin = lower, ymax = upper), fill="grey70") + geom_line() +
 #  geom_line() + 
-  facet_wrap(~ building_id, scales = 'free_y')
+  facet_wrap(~ building_id, scales = 'free_y', ncol = 2)
 ```
 
 Left as an exercise for the reader: 
