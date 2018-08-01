@@ -922,6 +922,32 @@ towards the bottom. We'll see a bit later that we actually want this to look mor
 like a funnel than a cloud, but the divergences are indicating that the sampler
 can't explore the narrowing neck of the funnel. 
 
+One way to see why we should expect some version of a funnel is to look at some 
+simulations from the prior, which we can do without MCMC and thus with no risk 
+of sampling problems: 
+
+```{r}
+N_sims <- 1000
+log_sigma <- rep(NA, N_sims)
+theta <- rep(NA, N_sims)
+for (j in 1:N_sims) {
+  log_sigma[j] <- rnorm(1, mean = 0, sd = 1)
+  theta[j] <- rnorm(1, mean = 0, sd = exp(log_sigma[j]))
+}
+draws <- cbind("theta" = theta, "log(sigma)" = log_sigma)
+mcmc_scatter(draws)
+```
+
+Of course, if the data is at all informative we shouldn't expect the posterior
+to look exactly like the prior. But unless the data is incredibly informative
+about the parameters and the posterior concentrates away from the narrow neck of
+the funnel, the sampler is going to have to confront the funnel geometry. (See
+the [Visual MCMC
+Diagnostics](http://mc-stan.org/bayesplot/articles/visual-mcmc-diagnostics.html)
+vignette for more on this.)
+
+Another way to look at the divergences is via a parallel coordinates plot: 
+
 ```{r}
 parcoord_with_divs <- mcmc_parcoord(
   as.array(fitted_model_NB_hier, pars = c("sigma_mu", "mu")),
@@ -951,11 +977,13 @@ transformed parameters {
 }
 ```
 
-This gives $\texttt{mu}$ a $\text{Normal}(\alpha + \texttt{building_data}\, \zeta, \sigma_\mu)$ distribution, but it
-decouples the dependence of the density of each element of $\texttt{mu}$ from 
-$\texttt{sigma_mu}$ ($\sigma_\mu$). hier_NB_regression_ncp.stan uses the non-centered
-parameterization for $\texttt{mu}$. We will examine the effective sample size of the
-fitted model to see whether we've fixed the problem with our reparameterization.
+This gives $\texttt{mu}$ a 
+$\text{Normal}(\alpha + \texttt{building_data}\, \zeta, \sigma_\mu)$ 
+distribution, but it decouples the dependence of the density of each element of
+$\texttt{mu}$ from $\texttt{sigma_mu}$ ($\sigma_\mu$).
+hier_NB_regression_ncp.stan uses the non-centered parameterization for
+$\texttt{mu}$. We will examine the effective sample size of the fitted model to
+see whether we've fixed the problem with our reparameterization.
 
 Compile the model.
 
