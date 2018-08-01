@@ -1330,3 +1330,19 @@ How can we generate the distribution of portfolio revenue (i.e. the sum of
 revenue across all the buildings) under the maximum revenue strategy from the
 posterior draws of $\texttt{rev_rep_potential}$ we already have from
 $\texttt{samps_rev}$?
+
+
+# Useful resources: 
+
+[ADD MORE TO THIS]
+
+* [The Stan Forums](http://discourse.mc-stan.org/)
+* [Stan Language Documentation](http://mc-stan.org/users/documentation/)
+* [Stan Case Studies](http://mc-stan.org/users/documentation/case-studies)
+* **rstan** [vignettes](http://mc-stan.org/rstan/articles)
+* **bayesplot** tutorial [vignettes](http://mc-stan.org/bayesplot/articles)
+* **loo** tutorial [vignettes](http://mc-stan.org/loo/articles)
+* [Interactive MCMC demos](https://chi-feng.github.io/mcmc-demo/)
+* Paper: [_A Conceptual Introduction to Hamiltonian Monte Carlo_](https://arxiv.org/abs/1701.02434)
+* Paper: [_Visualization in Bayesian Workflow_](https://github.com/jgabry/bayes-vis-paper#readme)
+
