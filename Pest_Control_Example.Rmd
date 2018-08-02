@@ -1300,8 +1300,9 @@ date generating process.
 
 ## Using our model: Cost forecasts
 
-We've fitted a nice model, so we can go ahead an use the model to help us make a decision
-about how many traps to put in our buildings. We'll make a forecast for 6 months forward.
+Our model seems to be fitting well, so now we will go ahead and use the model to
+help us make a decision about how many traps to put in our buildings. We'll make
+a forecast for 6 months forward.
 
 ```{r comp-rev, cache=TRUE, results="hide", message=FALSE}
 comp_rev <- stan_model('stan_programs/hier_NB_regression_ncp_slopes_mod_mos_predict.stan')
@@ -1320,9 +1321,9 @@ stan_dat_hier$M_forward <- 12
 rev_model <- sampling(comp_rev, data = stan_dat_hier, chains = 4, cores = 4, iter = 2000)
 ```
 
-Below we've generated our revenue curves for the buildings. These charts will give us 
-precise quantification of our uncertainty around our revenue projections at any number of traps for
-each building. 
+Below we've generated our revenue curves for the buildings. These charts will
+give us precise quantification of our uncertainty around our revenue projections
+at any number of traps for each building.
 
 A key input to our analysis will be the cost of installing bait stations. We're 
 simulating the number of complaints we receive over the course of a year, so we 

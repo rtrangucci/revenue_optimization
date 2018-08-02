@@ -16,7 +16,7 @@ library(bayesplot)
 library(ggplot2)
 ```
 
-## Problem set-up
+# Problem set-up
 
 Let's say that we're a data scientist at a large media company. We are told that
 we have the power to set prices for all streaming movies at whatever we want in
@@ -619,7 +619,7 @@ bayesplot::ppc_stat_grouped(stan_dat_simple$qty_sld,
 As we can see, it appears that our monthly random intercept has captured a monthly
 pattern across all the movies.
 
-## Revenue forecasts
+# Revenue forecasts
 
 Let's modify the Stan program to generate revenue forecasts at different prices in the
 last week of data.
@@ -685,7 +685,7 @@ revenue across all the movies) under the maximum revenue strategy from the
 posterior draws of $\texttt{hypo_rev}$ we already have from
 $\texttt{samps_rev}$?
 
-## Conclusion
+# Conclusion
 
 We've walked through a full decision analysis problem with Stan. You should have a better
 sense how to build hierarchical generalized linear models in Stan, and then how to use the
