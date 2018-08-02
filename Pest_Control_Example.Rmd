@@ -150,6 +150,12 @@ building per month is a function of the number of bait stations per building per
 month. That requires only two variables, $\textrm{complaints}$ and 
 $\textrm{traps}$. How can we model the number of complaints? 
 
+
+## Bayesian workflow
+
+Insert steps here
+
+
 ## Modeling count data : Poisson distribution
 
 We already know some rudimentary information about what we should expect. The
@@ -180,11 +186,6 @@ $$
 \eta_{b,t} &= \alpha + \beta \, \textrm{traps}_{b,t}
 \end{align*}
 $$
-
-## Bayesian workflow
-
-Insert steps here
-
 
 Let's encode this probability model in Stan code. 
 
@@ -325,6 +326,8 @@ and printing the parameters. What do these tell us?
 print(fit_P_real_data, pars = c('alpha','beta'))
 ```
 
+We can also plot the posterior distributions: 
+
 ```{r hist_simple_P}
 mcmc_hist(as.matrix(fit_P_real_data, pars = c('alpha','beta')))
 ```
@@ -332,6 +335,9 @@ mcmc_hist(as.matrix(fit_P_real_data, pars = c('alpha','beta')))
 As we expected, it appears the number of bait stations set in a building impacts
 the number of complaints about cockroaches that were made in the following
 month. However, we still need to consider how well the model fits.
+
+
+### Posterior predictive checking
 
 ```{r}
 y_rep <- as.matrix(fit_P_real_data, pars = "y_rep")
@@ -403,7 +409,7 @@ ppc_intervals(
 Specifically, the model doesn't capture the tails of the observed data very
 well. 
 
-### Expanding the model
+## Expanding the model: multiple predictors
 
 Modeling the relationship between complaints and bait stations is the simplest 
 model. We can expand the model, however, in a few ways that will be beneficial 
@@ -411,7 +417,7 @@ for our client. Moreover, the manager has told us that they expect there are a
 number of other reasons that one building might have more roach complaints than
 another.
 
-#### Interpretability
+### Interpretability
 
 Currently, our model's mean parameter is a rate of complaints per 30 days, but
 we're modeling a process that occurs over an area as well as over time. We have
@@ -456,10 +462,10 @@ stan_dat_simple$log_sq_foot <- log(pest_data$total_sq_foot/1e4)
 stan_dat_simple$live_in_super <- pest_data$live_in_super
 ```
 
-####Model
+### Simlute fake data with multiple predictors
 
-Now we need a new Stan model that uses multiple predictors. Firs we have to
-compile multiple_poisson_regression_dgp.stan.
+Now we need a new Stan model that uses multiple predictorst. Firs we have to
+compile `multiple_poisson_regression_dgp.stan`.
 
 ```{r compmultPDGP, cache=TRUE, results="hide", message=FALSE}
 comp_dgp_multiple <- stan_model('stan_programs/multiple_poisson_regression_dgp.stan')
@@ -562,7 +568,7 @@ We can see that the we've increased the tails a bit more at the larger numbers o
 but we've still got some observations around 20 and 30 complaints that the model
 would consider extremely unlikely events. 
 
-## Modeling count data : Negative Binomial outcome
+## Modeling count data with the Negative Binomial
 
 When we considered modelling the data using a Poisson, we saw that the model
 didn't appear to fit as well to the data as we would like. In particular the
@@ -598,7 +604,7 @@ As $\phi$ gets larger the term $\lambda^2 / \phi$ gets smaller and the
 negative-binomial gets closer and closer to the Poisson.
 
 
-###Fake data fit: Multiple NB regression
+### Fake data fit: Multiple NB regression
 
 ```{r , cache=TRUE, results="hide", message=FALSE}
 comp_dgp_multiple_NB <- stan_model('stan_programs/multiple_NB_regression_dgp.stan')
@@ -681,8 +687,7 @@ qplot(mean_y_rep, std_resid) + hline_at(1) + hline_at(-1)
 ```
 
 
-
-Fit the model to the real data.
+### Fit to real data and check the fit
 
 ```{r runNB}
 fitted_model_NB <- sampling(comp_model_NB, data = stan_dat_simple, chains = 4, cores = 4)
@@ -757,8 +762,9 @@ Some of the building-level means aren't modeled well. This indicates that there
 might be some unobserved building-level variation that we're not capturing with
 the current model.
 
-### Hierarchical modeling
-#### Random intercepts for each building
+## Hierarchical modeling
+
+### Modeling varying intercepts for each building
 
 Let's add a hierarchical intercept parameter, $\alpha_b$ at the building level
 to our model.
@@ -785,11 +791,12 @@ $$
 We have more information at the building level as well, like the average age of
 the residents, the average age of the buildings, and the average per-apartment
 monthly rent so we can add that data into a matrix called
-$\texttt{building_data}$, which will have one row per building and four columns:
-* live_in_super
-* age_of_building
-* average_tentant_age
-* monthly_average_rent
+`building_data`, which will have one row per building and four columns:
+
+* `live_in_super`
+* `age_of_building`
+* `average_tentant_age`
+* `monthly_average_rent`
 
 We'll write the Stan model like:
 
@@ -797,6 +804,8 @@ $$
 \eta_{b,t} = \alpha_b + \beta \, {\rm traps} + \text{log_sq_foot}\\
 \mu \sim \text{Normal}(\alpha + \texttt{building_data} \, \zeta, \,\sigma_{\mu})
 $$
+
+### Prepare building data for hierarchical 
 
 We'll need to do some more data prep before we can fit our models. Firstly to
 use the building variable in Stan we will need to trasnform it from a factor
@@ -853,6 +862,8 @@ stan_dat_hier <-
         )
 ```
 
+### Compile and fit the hierarchical model
+
 Let's compile the model. 
 
 ```{r comp-NB-hier, cache=TRUE, results="hide", message=FALSE}
@@ -864,6 +875,8 @@ Fit the model to data.
 ```{r run-NB-hier}
 fitted_model_NB_hier <- sampling(comp_model_NB_hier, data = stan_dat_hier, chains = 4, cores = 4)
 ```
+
+### Diagnostics 
 
 We get a bunch of warnings from Stan about divergent transitions. 
 
@@ -957,6 +970,8 @@ parcoord_with_divs
 ```
 
 Again, we see evidence that our problems concentrate when $\texttt{sigma_mu}$ is small.
+
+### Reparameterize and recheck diagnostics
 
 Instead, we should use the non-centered parameterization for $\mu_b$. We
 define a vector of auxiliary variables in the parameters block,
@@ -1076,6 +1091,8 @@ Rootogram:
 ppc_rootogram(stan_dat_hier$complaints, yrep = y_rep)
 ```
 
+### Varying intercepts _and_ varying slopes
+
 Ok, so these plots look \emph{much} better. Perhaps if the levels of complaints
 differ by building, the coefficient for the effect of traps on building does
 too. We can add this to our model and observe the fit.
@@ -1135,11 +1152,11 @@ ppc_dens_overlay(
 )
 ```
 
-[It might be interesting to do more investingation of the model, but I haven't added this yet]
+[It might be interesting to do more investigation of the model, but I haven't added this yet]
 [We haven't done anything about inference really, we're just hammering in the posterior predictive
 checks. This could motivate informative priors for some of the zeta/gamma regression parameters]
 
-### Time varying effects and structured priors
+## Time varying effects and structured priors
 
 We haven't looked at how cockroach complaints change over time. Let's look
 at whether there's any pattern over time.
