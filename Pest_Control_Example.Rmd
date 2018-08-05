@@ -96,7 +96,7 @@ The data provided to us is in a file called `building_data_20180724.RDS`. Let's
 load the data and see what the structure is:
 
 ```{r load-data}
-pest_data <- readRDS('data/building_data_20180727_time_trend.RDS')
+pest_data <- readRDS('data/building_data_20180803_alt.RDS')
 str(pest_data)
 ```
 
@@ -154,7 +154,6 @@ $\textrm{traps}$. How can we model the number of complaints?
 ## Bayesian workflow
 
 Insert steps here
-
 
 ## Modeling count data : Poisson distribution
 
@@ -743,7 +742,7 @@ ppc_intervals(
   labs(x = "Number of traps", y = "Number of complaints")
 ```
 
-We can see that is indeed the case with several large observations that are outside
+We can see that is indeed the case with several large observations that are in
 the tails of the posterior predictive distribution.
 
 We haven't used the fact that the data are clustered by building yet. A posterior 
@@ -873,7 +872,7 @@ comp_model_NB_hier <- stan_model('stan_programs/hier_NB_regression.stan')
 Fit the model to data.
 
 ```{r run-NB-hier}
-fitted_model_NB_hier <- sampling(comp_model_NB_hier, data = stan_dat_hier, chains = 4, cores = 4)
+fitted_model_NB_hier <- sampling(comp_model_NB_hier, data = stan_dat_hier, chains = 4, cores = 4, iter = 4000)
 ```
 
 ### Diagnostics 
@@ -1274,10 +1273,18 @@ As we can see, our monthly random intercept has captured a monthly
 pattern across all the buildings.
 
 ```{r}
+gen_beta <- function(x) {
+  alpha <- 10
+  bet <- 5
+  a <- -1
+  c <- 1
+  lp <- (alpha - 1) * log(x - a) + (bet - 1) * log(c - x) - (alpha + bet - 1) * log(c - a) - lbeta(alpha, bet)
+  return(exp(lp))
+}
 mcmc_hist(
-  as.matrix(fitted_model_NB_hier_mos, pars = "rho"), 
+  as.matrix(fitted_model_NB_hier_mos, pars = "rho"), freq=F,
   binwidth = 0.01
-)
+) + overlay_function(fun = gen_beta)
 ```
 
 [Ask Jonah how to plot the prior vs. the posterior in bayesplot]
@@ -1313,11 +1320,18 @@ we've only provided the model an observational-level exposure. We create that be
 in addition to the number of months we wish to simulate complaints for.
 
 [Double check the indices for the log_sq_foot_pred]
-```{r run-NB-hier-rev}
+```{r prep-NB-hier-rev}
 stan_dat_hier$log_sq_foot_pred <- pest_data %>% arrange(building_idx) %>% mutate(
   log_exposure = log(total_sq_foot/1e4)
 ) %>% group_by(building_idx) %>% summarise( log_exposure = first(log_exposure)) %>% .$log_exposure
 stan_dat_hier$M_forward <- 12
+```
+
+Another important input to the revenue model is how much revenue is lost to each
+complaint. The client has a policy that for every 10 complaints, they'll call an
+exterminator costing the client \$100, so that'll amount to \$10 per complaint.
+
+```{r run-NB-hier-rev}
 rev_model <- sampling(comp_rev, data = stan_dat_hier, chains = 4, cores = 4, iter = 2000)
 ```
 
@@ -1331,21 +1345,30 @@ need to understand the cost associated with maintaining each bait station over
 the course of a year. There's the cost attributed to the raw bait station, which
 is the plastic housing and the bait material, a peanut-buttery substance that's 
 injected with insecticide. The cost of maintaining one bait station for a year 
-plus monthly replenishment of the bait material is about \$20. We'll also need 
-labor for maintaining the bait stations. If there are fewer than 5 traps, our 
-in-house maintenance staff can manage the stations (about 1 hour per month of 
-work at \$20/hour), but above 5 we need to hire outside pest control to help
-out. They're a bit more expensive, so we've put their cost at \$30 / hour. Each
-5 traps should require an extra person-hour of work, so that's factored in as
-well. The marginal person-person hours above five traps are at the higher
-pest-control-labor rate.
+plus monthly replenishment of the bait material is about \$20. 
+
+```{r materials-cost-formulation}
+N_traps <- 20
+costs <- 10*(1:N_traps) 
+```
+
+We'll also need labor for maintaining the bait stations. If there are fewer than
+5 traps, our in-house maintenance staff can manage the stations (about 1 hour
+per month of work at \$20/hour), but above 5 we need to hire outside pest
+control to help out. They're a bit more expensive, so we've put their cost at
+\$30 / hour. Each 5 traps should require an extra person-hour of work, so that's
+factored in as well. The marginal person-person hours above five traps are at
+the higher pest-control-labor rate.
+
+```{r labor-cost-formulation}
+costs <- costs + (1:N_traps < 5)*(6*20) + (1:N_traps >= 5 & 1:N_traps < 10)*(6*(20 + 30)) + (1:N_traps >= 10 & 1:N_traps < 15)*(6*(20 + 2 * 30)) +  + (1:N_traps >= 15) * (6*(20 + 3 * 30))
+```
+
+Now we build the revenue curves.
 
 ```{r rev-curves, fig.width = 6, fig.height = 8}
 # extract as a list for convenience below
 samps_rev <- rstan::extract(rev_model)
-
-N_traps <- 20
-costs <- 10*(1:N_traps) + (1:N_traps < 5)*(6*20) + (1:N_traps >= 5 & 1:N_traps < 10)*(6*50) + (1:N_traps >= 10 & 1:N_traps < 15)*(6*80) +  + (1:N_traps >= 15) * (6*110)
 tot_profit <- sweep(samps_rev$rev_rep_potential,c(3),STATS = costs, FUN = '-')
 mean_profit <- apply(tot_profit,c(2,3),median)
 lower_profit <- apply(tot_profit,c(2,3),quantile,0.25)
@@ -1354,16 +1377,13 @@ profit_df <- data.frame(profit = as.vector(t(mean_profit)), lower = as.vector(t(
                      upper = as.vector(t(upper_profit)),
                      traps = rep(1:N_traps,N_buildings),
                      building_id = as.vector(sapply(1:N_buildings,rep,N_traps)))
-                     # qty = as.vector(t(mean_qty)),
-                     # lower_qty = as.vector(t(lower_qty)),
-                     # upper_qty = as.vector(t(upper_qty)))
-#betas <- order(colMeans(samps_rev$betas))[c(1:5, (N_titles - 4):N_titles)]
-#sub_df <- rev_df %>% filter(ttl_idx %in% betas)
 ggplot(data = profit_df, aes(x = traps, y = profit)) +
   geom_ribbon(aes(ymin = lower, ymax = upper), fill="grey70") + geom_line() +
-#  geom_line() + 
   facet_wrap(~ building_id, scales = 'free_y', ncol = 2)
 ```
+
+We can can see that the optimal number of bait stations differs by building.
+How would we build a revenue curve for a new building?
 
 Left as an exercise for the reader: 
 

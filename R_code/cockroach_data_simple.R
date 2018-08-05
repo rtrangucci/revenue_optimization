@@ -3,7 +3,6 @@ library(dplyr)
 library(rstan)
 library(zoo)
 
-
 tpois <- function(mu, lower, upper) {
   samp <- rpois(1, mu)
   while (samp < lower | samp > upper)
@@ -18,7 +17,7 @@ rtpois <- function(N, mu, lower, upper) {
   return(samps)
 }
 
-gen_data <- function(N_buildings, N_wks, obs_noise = 20, seed=123) {
+gen_data <- function(N_buildings, N_wks, obs_noise = 20, seed=123, n_changes = NULL, ar = NULL) {
   set.seed(seed)
   building_inds <- as.vector(sapply(1:N_buildings, rep, N_wks))
   building_data <- data.frame(building_id = 1:N_buildings,
@@ -35,8 +34,11 @@ gen_data <- function(N_buildings, N_wks, obs_noise = 20, seed=123) {
     )
     
   wk_inds <- rep(1:N_wks, N_buildings)
-  dates <- as_date('2017-01-01') + (1:N_wks)*30
-  n_trap_changes <- rtpois(N_buildings,3,1,4)
+  dates <- as_date('2017-01-15') + (0:(N_wks-1))*30
+#  n_trap_changes <- rtpois(N_buildings,3,1,4)
+  n_trap_changes <- rtpois(N_buildings,7,5,10)
+  if (!is.null(n_changes)) 
+    n_trap_changes <- rep(n_changes, N_buildings)
   starting_traps <- rtpois(N_buildings,9,4,8)
   traps <- sapply(n_trap_changes,function(x) sort(sample(2:N_wks,x, replace=F)))
   building_traps <- c()
@@ -65,13 +67,16 @@ gen_data <- function(N_buildings, N_wks, obs_noise = 20, seed=123) {
   for (n in 2:N_wks) {
     wk_noise[n] = wk_noise[n-1] * ar_coef + rnorm(1) * 0.15
   }
+  if (!is.null(ar)) {
+    wk_noise = ar
+  }
   overall_mu <- log(2.5)
-  sd_alpha <- 0.05
+  sd_alpha <- 0.25
   overall_beta <- 0.75
   sd_beta <- 0.05
   gamma <- c(0.15,-0.15,0,0)
   alphas <- (overall_mu + sd_alpha * rnorm(N_buildings)) + log(building_data$total_sq_foot/1e4) + 
-    building_attr %*% c(log(0.75),log(0.6),log(0.9),log(0.8))
+    building_attr %*% c(log(0.75),log(1.2),log(0.9),log(0.8))
   betas <- -exp(overall_beta + building_attr %*% gamma + sd_beta * rnorm(N_buildings))/10
   mus <- alphas[building_inds] + betas[building_inds] * building_traps + wk_noise[wk_inds]
   df_pred <- data.frame(mus = mus, building_id = building_inds, wk_ind = wk_inds, date = dates[wk_inds], trap = building_traps)
@@ -88,14 +93,33 @@ gen_data <- function(N_buildings, N_wks, obs_noise = 20, seed=123) {
               df_pred = df_pred,
               betas = betas,
               alphas = alphas,
-              ar = wk_noise)) 
+              ar = wk_noise,
+              n_trap_changes = n_trap_changes)) 
 }
 
 #set.seed(12)
 df_test <- gen_data(10, 12, obs_noise = 2, seed=123)
+ar_vec <- c(df_test$ar[1:10],df_test$ar[4:3])
+df_test_2 <- gen_data(10, 12, obs_noise = 2, seed=123, n_changes = NULL, ar = ar_vec*2)
+plot(df_test_2$df$trap,log(df_test_2$df$complaints/df_test_2$df$total_sq_foot*1e4))
 hist(df_test$alphas)
 hist(df_test$betas)
 plot(df_test$ar,type='l')
+plot(df_test_2$ar,type='l')
+group_by(df_test_2$df,date) %>% summarise(m_c = mean(complaints)) %>% plot(type='l')
+
+tt <- glm(complaints ~ offset(log(total_sq_foot/1e4)) + trap, data = df_test_2$df, family = quasipoisson)
+summary(tt)
+df_test_2$df$resid <- resid(lm(log1p(complaints) ~ offset(log(total_sq_foot/1e4)) + trap, data = df_test_2$df))
+group_by(df_test_2$df,date) %>% summarise(m_r = mean(resid)) %>% plot(type='l')
+summary(tt)
+
+tt <- glm(complaints ~ trap, data = df_test_2$df, family = quasipoisson)
+summary(tt)
+hist(df_test_2$n_trap_changes)
+
+test <- readRDS('data/building_data_20180727_time_trend.RDS')
+df_test_2$df_pred$building_id <- unique(test$building_id)[df_test_2$df_pred$building_id]
 
 #hist(df_test$alphas)
 df_test_2 <- gen_data(100, 50, obs_noise = 12, seed=12)
@@ -104,4 +128,11 @@ df %>% mutate(idx = as.integer(as.factor(title)), opt_price = -1/df_test_2$betas
 unique(df_mod[,c('title','opt_price')])
 summary(df$units_sold)
 with(dplyr::filter(df_test$df, building_id == 1), plot(date, complaints, type = 'l'))
-saveRDS(rename(df_test$df,traps=trap), 'data/building_data_20180727.RDS')
+#saveRDS(rename(df_test$df,traps=trap), 'data/building_data_20180727.RDS')
+saveRDS(rename(df_test_2$df_pred,traps=trap), 'data/building_data_20180803_alt.RDS')
+
+
+tt <- glm(complaints ~ offset(log(total_sq_foot/1e4)) + trap, data = test, family = quasipoisson)
+summary(tt)
+
+group_by(test,date) %>% summarise(m_c = mean(complaints)) %>% plot(type='l')
