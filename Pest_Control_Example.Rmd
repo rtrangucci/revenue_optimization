@@ -92,11 +92,11 @@ of the number of traps.
 
 ## The data
 
-The data provided to us is in a file called `building_data_20180724.RDS`. Let's
+The data provided to us is in a file called `pest_data.RDS`. Let's
 load the data and see what the structure is:
 
 ```{r load-data}
-pest_data <- readRDS('data/building_data_20180803_alt.RDS')
+pest_data <- readRDS('data/pest_data.RDS')
 str(pest_data)
 ```
 
@@ -251,7 +251,7 @@ comp_model_P <- stan_model('stan_programs/simple_poisson_regression.stan')
 Lastly, let's run the model to see if we can recover our simulated parameters. 
 
 ```{r}
-fit_model_P <- sampling(comp_model_P, data = stan_dat_fake)
+fit_model_P <- sampling(comp_model_P, data = stan_dat_fake, seed = 123)
 
 # see http://mc-stan.org/rstan/articles/stanfit_objects.html for various
 # ways of extracting the contents of the stanfit object
@@ -282,9 +282,11 @@ interpret.
 
 ```{r}
 y_rep <- as.matrix(fit_model_P, pars = "y_rep")
+dim(y_rep)
+
 mean_y_rep <- colMeans(y_rep)
 std_resid <- (stan_dat_fake$complaints - mean_y_rep) / sqrt(mean_y_rep)
-qplot(mean_y_rep, std_resid) + hline_at(1) + hline_at(-1)
+qplot(mean_y_rep, std_resid) + hline_at(2) + hline_at(-2)
 ```
 
 One alternative to this is a rootogram. This is a plot of the expected counts
@@ -316,13 +318,14 @@ stan_dat_simple <- list(
 As we have already compiled the model, we can jump straight to sampling from it.
 
 ```{r fit_P_real_data, cache=TRUE}
-fit_P_real_data <- sampling(comp_model_P, data = stan_dat_simple, chains = 4, cores =4 )
+fit_P_real_data <- sampling(comp_model_P, data = stan_dat_simple)
 ```
 
 and printing the parameters. What do these tell us? 
 
 ```{r results_simple_P}
 print(fit_P_real_data, pars = c('alpha','beta'))
+
 ```
 
 We can also plot the posterior distributions: 
@@ -369,15 +372,12 @@ This next plot is a plot of the standardised residuals of the observed vs predic
 ```{r}
 mean_y_rep <- colMeans(y_rep)
 std_resid <- (stan_dat_simple$complaints - mean_y_rep) / sqrt(mean_y_rep)
-qplot(mean_y_rep, std_resid) + hline_at(1) + hline_at(-1)
+qplot(mean_y_rep, std_resid) + hline_at(2) + hline_at(-2)
 ```
 
-Ideally these would be centered around zero on the y-axis with the bulk of the
-residuals between -1 and 1 (1 standard deviation on the unit scale).  As you can
-see here, it looks as though we have more positive residuals than negative,
+As you can see here, it looks as though we have more positive residuals than negative,
 which indicates that the model tends to underestimate the number of complaints
 that will be received.
-
 
 The rootogram is another useful plot to compare the observed vs expected number
 of complaints. This is a plot of the expected counts (continuous line) vs the
@@ -406,7 +406,8 @@ ppc_intervals(
 ```
 
 Specifically, the model doesn't capture the tails of the observed data very
-well. 
+well.
+
 
 ## Expanding the model: multiple predictors
 
@@ -682,7 +683,7 @@ y_rep <- rstan::extract(fitted_model_NB)$y_rep
 mean_inv_phi <- mean(posterior_alpha_beta_NB[,'inv_phi'])
 mean_y_rep <- colMeans(y_rep)
 std_resid <- (stan_dat_fake_NB$complaints - mean_y_rep) / sqrt(mean_y_rep + mean_y_rep^2*mean_inv_phi)
-qplot(mean_y_rep, std_resid) + hline_at(1) + hline_at(-1)
+qplot(mean_y_rep, std_resid) + hline_at(2) + hline_at(-2)
 ```
 
 
@@ -716,7 +717,7 @@ These look OK, but let's look at the standardized residual plot.
 mean_inv_phi <- mean(samps_NB$inv_phi)
 mean_y_rep <- colMeans(y_rep)
 std_resid <- (stan_dat_simple$complaints - mean_y_rep) / sqrt(mean_y_rep + mean_y_rep^2*mean_inv_phi)
-qplot(mean_y_rep, std_resid) + hline_at(1) + hline_at(-1)
+qplot(mean_y_rep, std_resid) + hline_at(2) + hline_at(-2)
 ```
 
 Looks ok, but we still have some large residuals. This might be because we are
@@ -1082,7 +1083,7 @@ Standardized residuals:
 mean_y_rep <- colMeans(y_rep)
 mean_inv_phi <- mean(as.matrix(fitted_model_NB_hier_ncp, pars = "inv_phi"))
 std_resid <- (stan_dat_hier$complaints - mean_y_rep) / sqrt(mean_y_rep + mean_y_rep^2*mean_inv_phi)
-qplot(mean_y_rep, std_resid) + hline_at(1) + hline_at(-1)
+qplot(mean_y_rep, std_resid) + hline_at(2) + hline_at(-2)
 ```
 
 Rootogram:
