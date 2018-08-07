@@ -284,7 +284,7 @@ interpret.
 y_rep <- as.matrix(fit_model_P, pars = "y_rep")
 mean_y_rep <- colMeans(y_rep)
 std_resid <- (stan_dat_fake$complaints - mean_y_rep) / sqrt(mean_y_rep)
-qplot(mean_y_rep, std_resid) + hline_at(1) + hline_at(-1)
+qplot(mean_y_rep, std_resid) + hline_at(2) + hline_at(-2)
 ```
 
 One alternative to this is a rootogram. This is a plot of the expected counts
@@ -369,7 +369,7 @@ This next plot is a plot of the standardised residuals of the observed vs predic
 ```{r}
 mean_y_rep <- colMeans(y_rep)
 std_resid <- (stan_dat_simple$complaints - mean_y_rep) / sqrt(mean_y_rep)
-qplot(mean_y_rep, std_resid) + hline_at(1) + hline_at(-1)
+qplot(mean_y_rep, std_resid) + hline_at(2) + hline_at(-2)
 ```
 
 Ideally these would be centered around zero on the y-axis with the bulk of the
@@ -682,7 +682,7 @@ y_rep <- rstan::extract(fitted_model_NB)$y_rep
 mean_inv_phi <- mean(posterior_alpha_beta_NB[,'inv_phi'])
 mean_y_rep <- colMeans(y_rep)
 std_resid <- (stan_dat_fake_NB$complaints - mean_y_rep) / sqrt(mean_y_rep + mean_y_rep^2*mean_inv_phi)
-qplot(mean_y_rep, std_resid) + hline_at(1) + hline_at(-1)
+qplot(mean_y_rep, std_resid) + hline_at(2) + hline_at(-2)
 ```
 
 
@@ -716,7 +716,7 @@ These look OK, but let's look at the standardized residual plot.
 mean_inv_phi <- mean(samps_NB$inv_phi)
 mean_y_rep <- colMeans(y_rep)
 std_resid <- (stan_dat_simple$complaints - mean_y_rep) / sqrt(mean_y_rep + mean_y_rep^2*mean_inv_phi)
-qplot(mean_y_rep, std_resid) + hline_at(1) + hline_at(-1)
+qplot(mean_y_rep, std_resid) + hline_at(2) + hline_at(-2)
 ```
 
 Looks ok, but we still have some large residuals. This might be because we are
@@ -816,7 +816,7 @@ N_months <- max(table(pest_data$building_id))
 # Add some IDs for building and month
 pest_data <- pest_data %>%
   mutate(
-    building_fac = as.factor(building_id),
+    building_fac = factor(building_id, levels = unique(building_id)),
     building_idx = as.integer(building_fac),
     ids = rep(1:N_months, N_buildings),
     mo_idx = lubridate::month(date)
@@ -835,13 +835,14 @@ building_data <- pest_data %>%
     unique() %>%
     arrange(building_idx) %>% 
     select(-building_idx) %>% 
+    scale(scale=FALSE) %>%
+    as.data.frame() %>%
     mutate( # scale by constants
       age_of_building = age_of_building / 10,
       total_sq_foot = total_sq_foot / 10000,
       average_tenant_age = average_tenant_age / 10,
       monthly_average_rent = monthly_average_rent / 1000
     ) %>%
-    scale(scale=FALSE) %>%   # subtract means but don't divide by SD 
     as.matrix()
 
 # Make data list for Stan
@@ -1082,7 +1083,7 @@ Standardized residuals:
 mean_y_rep <- colMeans(y_rep)
 mean_inv_phi <- mean(as.matrix(fitted_model_NB_hier_ncp, pars = "inv_phi"))
 std_resid <- (stan_dat_hier$complaints - mean_y_rep) / sqrt(mean_y_rep + mean_y_rep^2*mean_inv_phi)
-qplot(mean_y_rep, std_resid) + hline_at(1) + hline_at(-1)
+qplot(mean_y_rep, std_resid) + hline_at(2) + hline_at(-2)
 ```
 
 Rootogram:
@@ -1251,6 +1252,10 @@ other aspects of the data generating process might we want to capture that we're
 capturing now?
 
 As usual, we run through our posterior predictive checks.
+
+```{r}
+print(fitted_model_NB_hier_mos, pars = c('zeta','alpha','sigma_kappa','sigma_mu','phi','rho','beta','alpha','gamma'))
+```
 
 ```{r ppc-full-hier-mos}
 y_rep <- as.matrix(fitted_model_NB_hier_mos, pars = "y_rep")
