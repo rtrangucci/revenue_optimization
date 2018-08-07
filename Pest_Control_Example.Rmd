@@ -817,7 +817,7 @@ N_months <- max(table(pest_data$building_id))
 # Add some IDs for building and month
 pest_data <- pest_data %>%
   mutate(
-    building_fac = as.factor(building_id),
+    building_fac = factor(building_id, levels = unique(building_id)),
     building_idx = as.integer(building_fac),
     ids = rep(1:N_months, N_buildings),
     mo_idx = lubridate::month(date)
@@ -836,13 +836,14 @@ building_data <- pest_data %>%
     unique() %>%
     arrange(building_idx) %>% 
     select(-building_idx) %>% 
+    scale(scale=FALSE) %>%
+    as.data.frame() %>%
     mutate( # scale by constants
       age_of_building = age_of_building / 10,
       total_sq_foot = total_sq_foot / 10000,
       average_tenant_age = average_tenant_age / 10,
       monthly_average_rent = monthly_average_rent / 1000
     ) %>%
-    scale(scale=FALSE) %>%   # subtract means but don't divide by SD 
     as.matrix()
 
 # Make data list for Stan
@@ -1252,6 +1253,10 @@ other aspects of the data generating process might we want to capture that we're
 capturing now?
 
 As usual, we run through our posterior predictive checks.
+
+```{r}
+print(fitted_model_NB_hier_mos, pars = c('zeta','alpha','sigma_kappa','sigma_mu','phi','rho','beta','alpha','gamma'))
+```
 
 ```{r ppc-full-hier-mos}
 y_rep <- as.matrix(fitted_model_NB_hier_mos, pars = "y_rep")
