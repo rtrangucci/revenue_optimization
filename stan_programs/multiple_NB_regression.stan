@@ -28,9 +28,9 @@ transformed parameters {
   real phi = inv(inv_phi);
 }
 model {
-  alpha ~ normal(0, 1);
+  alpha ~ normal(0, 5);
   beta ~ normal(-0.25, 1);
-  beta_super ~ normal(0, 1);
+  beta_super ~ normal(-0.5, 1);
   inv_phi ~ normal(0, 1);
   
   complaints ~ neg_binomial_2_log(alpha + beta * traps + beta_super * live_in_super

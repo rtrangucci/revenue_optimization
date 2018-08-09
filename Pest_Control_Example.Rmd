@@ -98,7 +98,6 @@ load the data and see what the structure is:
 
 ```{r load-data}
 pest_data <- readRDS('data/pest_data.RDS')
-pest_data <- readRDS("data/building_data_20180807_alt.RDS")
 str(pest_data)
 ```
 
@@ -128,9 +127,6 @@ And make some plots of the raw data:
 ggplot(pest_data, aes(x = complaints)) + 
   geom_bar()
 
-ggplot(pest_data, aes(x = traps, y = complaints)) + 
-  geom_col()
-
 ggplot(pest_data, aes(x = traps, y = complaints, color = live_in_super == TRUE)) + 
   geom_jitter()
 ```
@@ -147,15 +143,18 @@ ggplot(pest_data, aes(x = date, y = complaints, color = live_in_super == TRUE)) 
   scale_color_discrete(name = "Live-in super")
 ```
 
-The first question we might want to ask is whether the number of complaints per 
-building per month is a function of the number of bait stations per building per
-month. That requires only two variables, $\textrm{complaints}$ and 
-$\textrm{traps}$. How can we model the number of complaints? 
+
+The first question we'll look at is just whether the number of complaints per
+building per month is associated with the number of bait stations per building
+per month, ignoring the temporal and across-building variation (we'll come back
+to those sources of variation later in the document). That requires only two
+variables, $\textrm{complaints}$ and $\textrm{traps}$. How should we model the
+number of complaints?
 
 
 ## Bayesian workflow
 
-Insert steps here
+See slides
 
 ## Modeling count data : Poisson distribution
 
@@ -163,11 +162,12 @@ We already know some rudimentary information about what we should expect. The
 number of complaints over a month should be either zero or an integer. The
 property manager tells us that it is possible but unlikely that number of
 complaints in a given month is zero. Occasionally there are a very large number
-of complaints in a single month. A common way of modelling this sort of skewed,
+of complaints in a single month. A common way of modeling this sort of skewed,
 single bounded count data is as a Poisson random variable. One concern about
-modelling the outcome variable as a Poisson is that the data may be
-over-dispersed. How can we address this concern? We'll start with a simple
-Poisson model and build it up slowly.
+modeling the outcome variable as Poisson is that the data may be
+over-dispersed, but we'll start with the Poisson model and then check 
+whether over-dispersion is a problem by comparing our model's predictions 
+to the data.
 
 ### Model 
 
@@ -178,7 +178,7 @@ variance of the outcome variable `complaints` (number of complaints) is the
 same. We'll investigate whether this is a good assumption after we fit the 
 model.
 
-For building $b = 1,\dots,10$ at time $t = 1,\dots,12$, we have
+For building $b = 1,\dots,10$ at time (month) $t = 1,\dots,12$, we have
 
 $$
 \begin{align*}
@@ -192,27 +192,25 @@ Let's encode this probability model in Stan code.
 
 ### Writing our first Stan model
 
+* Write `simple_poisson_regression.stan` together
+
 ### Making sure our code is right
 
-However, before we fit the model, we need to walk through
-the best way to go about developing models in Stan.
+However, before we fit the model to real data, we should check that our
+model works well with simulated data. We'll simulate data according to the model
+and then check that we can sufficiently recover the parameter values used
+in the simulation.
 
+* Write `simple_poisson_regression_dgp.stan` together
 
-### Simulate some data
-
-How do we know if our Stan model is working well and if we are able to recover
-the known parameter values? Before we start fitting our Poisson model to the
-real data, first let's generate some fake data that matches our assumptions
-about the data.
-
-First we will compile the Stan model (simple_poisson_regression_dgp.stan) that
-generated the fake data.
+First we will compile the Stan program (simple_poisson_regression_dgp.stan) that
+will generate the fake data.
 
 ```{r , cache=TRUE, results="hide", message=FALSE}
 comp_dgp_simple <- stan_model('stan_programs/simple_poisson_regression_dgp.stan')
 ```
 
-Next we use this model to sample some data. 
+Now we can simulate the data:
 
 ```{r runpoissondgp}
 fitted_model_dgp <- sampling(
@@ -227,9 +225,12 @@ samps_dgp <- rstan::extract(fitted_model_dgp)
 str(samps_dgp)
 ```
 
+
+### Fit the model to the fake data:
+
 In order to pass the fake data to our Stan program using RStan, we need to
-arrange the data into a named list, whose elements correspond to the names
-in our Stan program.
+arrange the data into a named list. The names should matching the names used 
+in the `data` block of our Stan program:
 
 ```{r}
 stan_dat_fake <- list(
@@ -239,9 +240,6 @@ stan_dat_fake <- list(
 )
 str(stan_dat_fake)
 ```
-### Fit the model to the fake data:
-
-MOTIVATE INFORMATIVE PRIOR ON BETA
 
 Now we have the simulated data we fit a Stan model using it. First we need to
 compile the model (simple_poisson_regression.stan).
@@ -272,15 +270,15 @@ mcmc_recover_hist(posterior_alpha_beta, true = true_alpha_beta)
 
 It's possible we dont' do a great job recovering the parameters here simply
 because we're simulating so few observations that the posterior uncertainty
-remains rather large. If we did the simulation with many more observations the
+remains rather large, but it looks at least plausible. 
+If we did the simulation with many more observations the
 parameters would be estimated much more precisely.
 
 Next we check some [Posterior Predictive Checks (PPCs)](http://mc-stan.org/bayesplot/articles/graphical-ppcs.html). 
 
-One common check for regression models is
-to plot the residuals against the observed values for $y$. While this plot is
-what we would expect for a Poisson regression, it is relatively hard to
-interpret.
+One common check for regression models is to plot the residuals against the
+observed values for $y$. While this plot is what we would expect for a Poisson
+regression, it is relatively hard to interpret.
 
 ```{r}
 y_rep <- as.matrix(fit_model_P, pars = "y_rep")
@@ -327,7 +325,6 @@ and printing the parameters. What do these tell us?
 
 ```{r results_simple_P}
 print(fit_P_real_data, pars = c('alpha','beta'))
-
 ```
 
 We can also plot the posterior distributions: 
@@ -336,9 +333,9 @@ We can also plot the posterior distributions:
 mcmc_hist(as.matrix(fit_P_real_data, pars = c('alpha','beta')))
 ```
 
-As we expected, it appears the number of bait stations set in a building impacts
-the number of complaints about cockroaches that were made in the following
-month. However, we still need to consider how well the model fits.
+As we expected, it appears the number of bait stations set in a building is
+associated with the number of complaints about cockroaches that were made in the
+following month. However, we still need to consider how well the model fits.
 
 
 ### Posterior predictive checking
@@ -350,6 +347,7 @@ y_rep <- as.matrix(fit_P_real_data, pars = "y_rep")
 ```{r marginal_PPC}
 ppc_dens_overlay(y = stan_dat_simple$complaints, y_rep[1:200,])
 ```
+
 This is a plot of the kernel density estimates of the observed data ($y$,
 thicker curve) and 200 simulated data sets ($y_{rep}$, thin curves) from the
 posterior predictive distribution. If the model was fitting the data well, there

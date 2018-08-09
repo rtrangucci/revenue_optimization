@@ -8,10 +8,10 @@ generated quantities {
   int live_in_super[N];
   int traps[N];
   int complaints[N];
-  real alpha = normal_rng(0.5, 0.25);
-  real beta = -fabs(normal_rng(0, 0.5));
-  real beta_super = normal_rng(-0.5, 0.5);
-  
+  real alpha = normal_rng(0, 2.5);
+  real beta = normal_rng(-0.25, 1);
+  real beta_super = normal_rng(-0.5, 1);
+
   for (n in 1:N) {
     log_sq_foot[n] = normal_rng(1, 1);
     live_in_super[n] = bernoulli_rng(0.5);
