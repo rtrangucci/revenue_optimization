@@ -35,8 +35,8 @@ gen_data <- function(N_buildings, N_wks, obs_noise = 20, seed=123, n_changes = N
     )
   
   wk_inds <- rep(1:N_wks, N_buildings)
-  dates <- as_date('2017-01-15') + (0:(N_wks-1))*30
-  #  n_trap_changes <- rtpois(N_buildings,3,1,4)
+  dates <- as_date('2015-01-15') + (0:(N_wks-1))*30
+  #n_trap_changes <- rtpois(N_buildings,5,4,10)
   n_trap_changes <- rtpois(N_buildings,20,15,30)
   if (!is.null(n_changes)) 
     n_trap_changes <- rep(n_changes, N_buildings)
@@ -62,7 +62,7 @@ gen_data <- function(N_buildings, N_wks, obs_noise = 20, seed=123, n_changes = N
                                                        'average_tenant_age')],scale=F)
   building_attr <- sweep(building_attr,MARGIN = 2, STATS = c(1,10,1e3,10),FUN='/')
   # Add AR 1
-  ar_coef <- 0.60
+  ar_coef <- 0.90
   mo_1 <- rnorm(1)/sqrt(1 - ar_coef^2) * 0.55
   wk_noise <- rep(NA_real_,N_wks)
   wk_noise[1] <- mo_1
@@ -74,12 +74,12 @@ gen_data <- function(N_buildings, N_wks, obs_noise = 20, seed=123, n_changes = N
   }
   overall_mu <- log(2.5)
   sd_alpha <- 0.25
-  overall_beta <- 0.75
-  sd_beta <- 0.00
-  gamma <- c(0.00,-0.00,0,0)
+  overall_beta <- -0.2
+  sd_beta <- 0.05
+  gamma <- c(-0.15,0.15,0,0)
   alphas <- (overall_mu + sd_alpha * rnorm(N_buildings)) + log(building_data$total_sq_foot/1e4) + 
     building_attr %*% c(log(0.75),log(1.2),log(0.9),log(0.8))
-  betas <- -exp(overall_beta + building_attr %*% gamma + sd_beta * rnorm(N_buildings))/10
+  betas <- overall_beta + building_attr %*% gamma + sd_beta * rnorm(N_buildings)
   mus <- alphas[building_inds] + betas[building_inds] * building_traps + wk_noise[wk_inds]
   df_pred <- data.frame(mus = mus, building_id = building_inds, wk_ind = wk_inds, date = dates[wk_inds], trap = building_traps)
   df_pred <- df_pred %>% left_join(building_data, by = 'building_id') %>%
@@ -97,14 +97,18 @@ gen_data <- function(N_buildings, N_wks, obs_noise = 20, seed=123, n_changes = N
               alphas = alphas,
               ar = wk_noise,
               n_trap_changes = n_trap_changes,
-              building_data = building_attr)) 
+              building_data = building_attr,
+              log_sq_foot_pred = building_data$total_sq_foot)) 
 }
 
 #set.seed(12)
-df_test <- gen_data(10, 12, obs_noise = 2, seed=123)
-ar_vec <- c(df_test$ar[1:10],df_test$ar[4:3])
-df_test_2 <- gen_data(10, 12, obs_noise = 2, seed=123, n_changes = NULL, ar = ar_vec*2)
-df_test <- gen_data(10, 36, obs_noise = 100, seed=123)
+# df_test <- gen_data(10, 12, obs_noise = 2, seed=123)
+# ar_vec <- c(df_test$ar[1:10],df_test$ar[4:3])
+# df_test_2 <- gen_data(10, 12, obs_noise = 2, seed=123, n_changes = NULL, ar = ar_vec*2)
+df_test <- gen_data(10, 36, obs_noise = 10, seed=123)
+#save(df_test$df)
+saveRDS(df_test$df, file = 'data/pest_data_longer.RDS')
+
 stan_dat <- with(df_test$df,
                  list(
                    complaints = complaints,
@@ -117,9 +121,11 @@ stan_dat <- with(df_test$df,
                    mo_idx = as.integer(as.factor(date)),
                    M = 36,
                    J = length(unique(building_id)),
-                   building_idx = building_id
+                   building_idx = building_id,
+                   log_sq_foot_pred = log(df_test$log_sq_foot_pred/1e4),
+                   M_forward = 12
                  ))
-stan_dat$building_attr <- df_test$building_data
+stan_dat$building_data <- df_test$building_data
 test_mod_comp <- stan_model('stan_programs/test_reg.stan')
 test_mod_fit <- sampling(test_mod_comp, cores = 4, chains = 4, data = stan_dat)
 mcmc_recover_hist(as.matrix(test_mod_fit, pars = c('zeta', 'alpha', 'beta', 'phi')),
@@ -135,11 +141,18 @@ test_mod_fit <- sampling(test_mod_comp, data = stan_dat, chains = 3, cores = 3, 
 mcmc_recover_hist(as.matrix(test_mod_fit, pars = c('zeta', 'alpha', 'beta', 'phi','rho','sigma_mo','sigma_mu')),
                   true = c(log(0.75),log(1.2),log(0.8),log(0.9), log(2.5), -0.21, 2,0.6,0.55,0.25))
 # with building attr
-mcmc_recover_hist(as.matrix(test_mod_fit, pars = c('zeta', 'alpha', 'beta', 'phi','rho','sigma_mo','sigma_mu')),
-                  true = c(log(0.75),log(1.2),log(0.9),log(0.8), log(2.5), -0.21, 2,0.6,0.55,0.25))
-
+mcmc_recover_hist(as.matrix(test_mod_fit, pars = c('zeta', 'alpha', 'beta', 'phi','rho','sigma_mo','sigma_mu','gamma','sigma_kappa')),
+                  true = c(log(0.75),log(1.2),log(0.9),log(0.8), log(2.5), -0.2, 10,0.9,0.55,0.25,-0.15,0.15,0.05))
+saveRDS(stan_dat, 'data/pest_data_longer_stan_dat.RDS')
 plot(colMeans(rstan::extract(test_mod_fit)$mo),df_test$ar)
 abline(0,1)
+
+plot(colMeans(rstan::extract(test_mod_fit)$kappa),df_test$betas)
+abline(0,1)
+
+plot(colMeans(rstan::extract(test_mod_fit)$mu),df_test$mu)
+abline(0,1)
+
 
 gen_beta <- function(x) {
   alpha <- 10
