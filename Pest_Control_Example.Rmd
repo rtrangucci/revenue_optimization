@@ -188,7 +188,7 @@ $$
 \end{align*}
 $$
 
-Let's encode this probability model in Stan code. 
+Let's encode this probability model in a Stan program. 
 
 ### Writing our first Stan model
 
@@ -203,14 +203,24 @@ in the simulation.
 
 * Write `simple_poisson_regression_dgp.stan` together
 
-First we will compile the Stan program (simple_poisson_regression_dgp.stan) that
+We can use the `stan()` function to compile and fit the model, but here we will 
+do the compilation and fitting in two stages to demonstrate what is really 
+happening under the hood. 
+
+First we will compile the Stan program (`simple_poisson_regression_dgp.stan`) that
 will generate the fake data.
 
 ```{r , cache=TRUE, results="hide", message=FALSE}
 comp_dgp_simple <- stan_model('stan_programs/simple_poisson_regression_dgp.stan')
 ```
 
-Now we can simulate the data:
+Printing this object shows the Stan program: 
+
+```{r}
+print(comp_dgp_simple)
+```
+
+Now we can simulate the data by calling the `sampling()` function.
 
 ```{r runpoissondgp}
 fitted_model_dgp <- sampling(
@@ -221,6 +231,9 @@ fitted_model_dgp <- sampling(
   algorithm = 'Fixed_param',
   seed = 123
   )
+
+# see http://mc-stan.org/rstan/articles/stanfit_objects.html for various
+# ways of extracting the contents of the stanfit object
 samps_dgp <- rstan::extract(fitted_model_dgp)
 str(samps_dgp)
 ```
@@ -229,8 +242,8 @@ str(samps_dgp)
 ### Fit the model to the fake data:
 
 In order to pass the fake data to our Stan program using RStan, we need to
-arrange the data into a named list. The names should matching the names used 
-in the `data` block of our Stan program:
+arrange the data into a named list. The names must match the names used 
+in the `data` block of the Stan program.
 
 ```{r}
 stan_dat_fake <- list(
@@ -241,27 +254,19 @@ stan_dat_fake <- list(
 str(stan_dat_fake)
 ```
 
-Now we have the simulated data we fit a Stan model using it. First we need to
-compile the model (simple_poisson_regression.stan).
+Now that we have the simulated data we fit the model to see if we can recover
+the `alpha` and `beta` parameters used in the simulation.
 
 ```{r , cache=TRUE, results="hide", message=FALSE}
 comp_model_P <- stan_model('stan_programs/simple_poisson_regression.stan')
-```
-
-Lastly, let's run the model to see if we can recover our simulated parameters. 
-
-```{r}
 fit_model_P <- sampling(comp_model_P, data = stan_dat_fake, seed = 123)
 
-# see http://mc-stan.org/rstan/articles/stanfit_objects.html for various
-# ways of extracting the contents of the stanfit object
 posterior_alpha_beta <- as.matrix(fit_model_P, pars = c('alpha','beta'))
 head(posterior_alpha_beta)
 ```
 
-### Assess parameter recovery
 
-First explore if we can recover the data that we originally simulated from.
+### Assess parameter recovery
 
 ```{r}
 true_alpha_beta <- c(samps_dgp$alpha, samps_dgp$beta)
@@ -274,11 +279,22 @@ remains rather large, but it looks at least plausible.
 If we did the simulation with many more observations the
 parameters would be estimated much more precisely.
 
-Next we check some [Posterior Predictive Checks (PPCs)](http://mc-stan.org/bayesplot/articles/graphical-ppcs.html). 
+We should also check if the `y_rep` datasets (in-sample predictions) that we coded 
+in the `generated quantities` block are similar to the `y` (complaints) values
+we conditioned on when fitting the model. (The **bayesplot**
+package [vignettes](http://mc-stan.org/bayesplot/articles/graphical-ppcs.html)
+are a good resource on this topic.)
+
+Here is a plot of the density estimate of the observed data compared to 
+200 of the `y_rep` datasets: 
+```{r}
+ppc_dens_overlay(y = stan_dat_fake$complaints, yrep = y_rep[1:200, ])
+```
+
 
 One common check for regression models is to plot the residuals against the
 observed values for $y$. While this plot is what we would expect for a Poisson
-regression, it is relatively hard to interpret.
+regression, it is relatively hard to interpret:
 
 ```{r}
 y_rep <- as.matrix(fit_model_P, pars = "y_rep")
@@ -298,14 +314,11 @@ well.
 ppc_rootogram(stan_dat_fake$complaints, yrep = y_rep)
 ```
 
+
 ### Fit with real data 
 
-Now we have seen that we can sensibly recover the parameters from simulated data
-so we have confidence that our model is correctly specified and that our Stan
-program doesn't have any bugs in it. 
-
-Next we can use this model with the real data that we observerd and look at how 
-the model fits the data. We'll again pass the data to RStan as a list:
+To fit the model to real data we'll first create a list to pass to Stan using
+the variables in the `pest_data` data frame:
 
 ```{r stan-data}
 stan_dat_simple <- list(
@@ -448,9 +461,9 @@ A quick test shows us that there appears to be a relationship between the square
 footage of the building and the number of complaints received:
 
 ```{r}
-sq_foot_dat_lm <- lm(log1p(complaints) ~ log(total_sq_foot), data = pest_data)
-with(pest_data, plot(log(total_sq_foot), log1p(complaints)))
-abline(reg = sq_foot_dat_lm)
+ggplot(pest_data, aes(x = log(total_sq_foot), y = log1p(complaints))) + 
+  geom_point() + 
+  geom_smooth(method = "lm", se = FALSE)
 ```
 
 Using the property manager's intuition, we include two extra peices of
@@ -461,6 +474,11 @@ whether there is a live in super or not - into both the simulated and real data.
 stan_dat_simple$log_sq_foot <- log(pest_data$total_sq_foot/1e4)
 stan_dat_simple$live_in_super <- pest_data$live_in_super
 ```
+
+
+### Stan program for Poisson multiple regression
+
+* Write `multiple_poisson_regression.stan` together
 
 ### Simlute fake data with multiple predictors
 
@@ -499,41 +517,30 @@ stan_dat_fake <- list(
 )
 ```
 
-And compile the model to fit this data with. 
+And then compile and fit the model we wrote for the multiple regression.
 
-```{r, cache=TRUE, results="hide", message=FALSE}
+```{r, cache=TRUE, message=FALSE, warning=FALSE}
 comp_model_P_mult <- stan_model('stan_programs/multiple_poisson_regression.stan')
-```
-
-Fit the data with the model, and extract the alpha and beta parameters. 
-
-```{r}
 fit_model_P_mult <- sampling(comp_model_P_mult, data = stan_dat_fake, chains = 4, cores = 4)
-posterior_alpha_beta <- as.matrix(fit_model_P_mult, pars = c('alpha','beta','beta_super'))
 ```
 
 Then compare these parameters to the true parameters:
 
 ```{r}
+posterior_alpha_beta <- as.matrix(fit_model_P_mult, pars = c('alpha','beta','beta_super'))
 true_alpha_beta <- c(samps_dgp$alpha,samps_dgp$beta,samps_dgp$beta_super)
 mcmc_recover_hist(posterior_alpha_beta, true = true_alpha_beta)
 ```
 
-We've recovered the parameters well, so we've coded the Stan program well and we're ready
-to fit the real data.
+We've recovered the parameters well, so we've probably coded the Stan program
+correctly and we're ready to fit the real data.
 
 ### Fit the real data
 
-Now let's fit to real data.
-
-First fit the real data with the model.
+Now let's use the real data and explore the fit.
 
 ```{r fit_mult_P_real_dat}
 fit_model_P_mult_real <- sampling(comp_model_P_mult, data = stan_dat_simple)
-```
-Then explore the fit. 
-
-```{r}
 y_rep <- as.matrix(fit_model_P_mult_real, pars = "y_rep")
 ppc_dens_overlay(stan_dat_simple$complaints, y_rep[1:200,])
 ```
@@ -541,20 +548,17 @@ ppc_dens_overlay(stan_dat_simple$complaints, y_rep[1:200,])
 This again looks like we haven't captured the smaller counts very well, nor
 have we captured the larger counts.
 
-Number of zeros:
+
 ```{r}
 prop_zero <- function(x) mean(x == 0)
-ppc_stat(y = stan_dat_simple$complaints, yrep = y_rep, stat = "prop_zero")
+ppc_stat(y = stan_dat_simple$complaints, yrep = y_rep, stat = "prop_zero", binwidth = 0.01)
 ```
 
-We're still underestimating the proportion of zeros in the data. Ideally
-this vertical line would be covered by the histogram.
+We're still severely underestimating the proportion of zeros in the data. Ideally
+this vertical line would fall somewhere within the histogram.
 
-
-```{r}
-ppc_rootogram(stan_dat_simple$complaints, yrep = y_rep)
-```
-The rootogram also indicates that we're underfitting the zeros as well as the tails.
+We can also plot uncertainty intervals for the predicted complaints for different
+numbers of traps.
 
 ```{r}
 ppc_intervals(
@@ -565,8 +569,8 @@ ppc_intervals(
   labs(x = "Number of traps", y = "Number of complaints")
 ```
 
-We can see that the we've increased the tails a bit more at the larger numbers of traps
-but we've still got some observations around 20 and 30 complaints that the model
+We can see that we've increased the tails a bit more at the larger numbers of traps
+but we still have some large observed numbers of complaints that the model
 would consider extremely unlikely events. 
  
 ## Modeling count data with the Negative Binomial
@@ -601,8 +605,14 @@ $$
 $$
 \text{Var}[y] = \lambda + \lambda^2/\phi = \exp(\eta) + \exp(\eta)^2 / \phi.
 $$ 
-As $\phi$ gets larger the term $\lambda^2 / \phi$ gets smaller and the
+
+As $\phi$ gets larger the term $\lambda^2 / \phi$ approaches zero and so 
+the variance of the negative-binomial approaches $\lambda$, i.e., the
 negative-binomial gets closer and closer to the Poisson.
+
+### Stan program for negative-binomial regression
+
+* Write `multiple_NB_regression.stan` together
 
 
 ### Fake data fit: Multiple NB regression
@@ -651,12 +661,9 @@ Now we run our NB regression over the fake data and extract the samples to
 examine posterior predictive checks and to check whether we've sufficiently
 recovered our known parameters, $\text{alpha}$ $\texttt{beta}$, .
 
-```{r runNBoverfake}
-fitted_model_NB <- 
-  sampling(comp_model_NB,
-           data = stan_dat_fake_NB,
-           chains = 4, cores = 4
-  )
+```{r runNBoverfake, message=FALSE, warning=FALSE}
+fitted_model_NB <- sampling(comp_model_NB, data = stan_dat_fake_NB, 
+                            chains = 4, cores = 4)
 posterior_alpha_beta_NB <- 
   as.matrix(fitted_model_NB,
             pars = c('alpha',
@@ -676,15 +683,6 @@ true_alpha_beta_NB <-
     samps_dgp_NB$inv_phi
   )
 mcmc_recover_hist(posterior_alpha_beta_NB, true = true_alpha_beta_NB)
-```
-
-
-```{r}
-y_rep <- rstan::extract(fitted_model_NB)$y_rep
-mean_inv_phi <- mean(posterior_alpha_beta_NB[,'inv_phi'])
-mean_y_rep <- colMeans(y_rep)
-std_resid <- (stan_dat_fake_NB$complaints - mean_y_rep) / sqrt(mean_y_rep + mean_y_rep^2*mean_inv_phi)
-qplot(mean_y_rep, std_resid) + hline_at(2) + hline_at(-2)
 ```
 
 
@@ -721,9 +719,9 @@ std_resid <- (stan_dat_simple$complaints - mean_y_rep) / sqrt(mean_y_rep + mean_
 qplot(mean_y_rep, std_resid) + hline_at(2) + hline_at(-2)
 ```
 
-Looks ok, but we still have some large residuals. This might be because we are
-currently ignoring that the data are clustered by buildings, and different
-buildings might have different overall probability of roaches.
+Looks ok, but we still have some large standardized residuals. This might be
+because we are currently ignoring that the data are clustered by buildings, and
+that the probability of roach issue may vary substantially across buildings.
 
 ```{r}
 ppc_rootogram(stan_dat_simple$complaints, yrep = y_rep)
@@ -744,22 +742,22 @@ ppc_intervals(
   labs(x = "Number of traps", y = "Number of complaints")
 ```
 
-We can see that is indeed the case with several large observations that are in
-the tails of the posterior predictive distribution.
-
 We haven't used the fact that the data are clustered by building yet. A posterior 
 predictive check might elucidate whether it would be a good idea to add the building
 information into the model.
+
 ```{r ppc-group_means}
 ppc_stat_grouped(
   y = stan_dat_simple$complaints, 
   yrep = y_rep, 
   group = pest_data$building_id, 
-  stat = 'mean'
+  stat = 'mean', 
+  binwidth = 0.5
 )
 ```
 
-Some of the building-level means aren't modeled well. This indicates that there
+We're getting plausible predictions for most building means but some are estimated 
+better than others and some have very large uncertaintys. This indicates that there
 might be some unobserved building-level variation that we're not capturing with
 the current model.
 
