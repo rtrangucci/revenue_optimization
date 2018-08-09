@@ -20,13 +20,13 @@ knitr::opts_chunk$set(
 )
 library(rstan)
 library(dplyr)
-library(reshape2)
-library(bayesplot)
+library(lubridate)
 library(ggplot2)
+library(bayesplot)
 
 theme_set(bayesplot::theme_default())
 
-# for R's pseudo-RNGs, not Stan's
+# seed for R's pseudo-RNGs, not Stan's
 set.seed(1123) 
 ```
 
@@ -34,14 +34,15 @@ set.seed(1123)
 
 ### Background
 
-Let's say that you're a data scientist working as an independent contractor.
-You're contacted by the property manager of a large property network in New York
-City. They explain that they are concerned about the number of roach complaints
-that they receive from their buildings. Previously they have offered monthly
-visits from a pest inspector as a solution to this problem. While this is the
-default solution of many property managers in NYC, the tenants are rarely home
-when the inpector visits, and so the manager reasons that this is a relatively
-expensive solution that is currently not very effective.
+Imagine that you are a statistician or data scientist working as an independent
+contractor. One of your clients is a company that owns many residential buildings 
+throughout New York City. The property manager explains that they are concerned about the number
+of cockroach complaints that they receive from their buildings. Previously
+the company has offered monthly visits from a pest inspector as a solution to
+this problem. While this is the default solution of many property managers in
+NYC, the tenants are rarely home when the inspector visits, and so the manager
+reasons that this is a relatively expensive solution that is currently not very
+effective.
 
 One alternative to this problem is to deploy long term bait stations. In this
 alternative, child and pet safe bait stations are installed throughout the
@@ -97,6 +98,7 @@ load the data and see what the structure is:
 
 ```{r load-data}
 pest_data <- readRDS('data/pest_data.RDS')
+pest_data <- readRDS("data/building_data_20180807_alt.RDS")
 str(pest_data)
 ```
 
@@ -529,7 +531,7 @@ Now let's fit to real data.
 First fit the real data with the model.
 
 ```{r fit_mult_P_real_dat}
-fit_model_P_mult_real <- sampling(comp_model_P_mult, data = stan_dat_simple, cores = 4, chains = 4)
+fit_model_P_mult_real <- sampling(comp_model_P_mult, data = stan_dat_simple)
 ```
 Then explore the fit. 
 
@@ -543,6 +545,7 @@ have we captured the larger counts.
 
 Number of zeros:
 ```{r}
+prop_zero <- function(x) mean(x == 0)
 ppc_stat(y = stan_dat_simple$complaints, yrep = y_rep, stat = "prop_zero")
 ```
 
@@ -567,7 +570,7 @@ ppc_intervals(
 We can see that the we've increased the tails a bit more at the larger numbers of traps
 but we've still got some observations around 20 and 30 complaints that the model
 would consider extremely unlikely events. 
-
+ 
 ## Modeling count data with the Negative Binomial
 
 When we considered modelling the data using a Poisson, we saw that the model
@@ -690,7 +693,7 @@ qplot(mean_y_rep, std_resid) + hline_at(2) + hline_at(-2)
 ### Fit to real data and check the fit
 
 ```{r runNB}
-fitted_model_NB <- sampling(comp_model_NB, data = stan_dat_simple, chains = 4, cores = 4)
+fitted_model_NB <- sampling(comp_model_NB, data = stan_dat_simple)
 samps_NB <- rstan::extract(fitted_model_NB)
 ```
 
@@ -812,7 +815,7 @@ use the building variable in Stan we will need to trasnform it from a factor
 variable to an interger variable.
 
 ```{r prep-data}
-N_months <- max(table(pest_data$building_id))
+N_months <- length(unique(pest_data$date))
 
 # Add some IDs for building and month
 pest_data <- pest_data %>%
@@ -868,7 +871,7 @@ stan_dat_hier <-
 Let's compile the model. 
 
 ```{r comp-NB-hier, cache=TRUE, results="hide", message=FALSE}
-comp_model_NB_hier <- stan_model('stan_programs/hier_NB_regression.stan')
+comp_model_NB_hier <- stan_model('stan_programs/hier_NB_regression2.stan')
 ```
 
 Fit the model to data.
@@ -913,7 +916,8 @@ transistions form a pattern.
 # use as.array to keep the markov chains separate for trace plots
 mcmc_trace(
   as.array(fitted_model_NB_hier,pars = 'sigma_mu'), 
-  np = nuts_params(fitted_model_NB_hier)
+  np = nuts_params(fitted_model_NB_hier),
+  window = c(500,1000)
 )
 ```
 
@@ -948,7 +952,7 @@ for (j in 1:N_sims) {
   log_sigma[j] <- rnorm(1, mean = 0, sd = 1)
   theta[j] <- rnorm(1, mean = 0, sd = exp(log_sigma[j]))
 }
-draws <- cbind("theta" = theta, "log(sigma)" = log_sigma)
+draws <- cbind("mu" = theta, "log(sigma_mu)" = log_sigma)
 mcmc_scatter(draws)
 ```
 
@@ -1010,7 +1014,7 @@ comp_model_NB_hier_ncp <- stan_model('stan_programs/hier_NB_regression_ncp.stan'
 Fit the model to the data.
 
 ```{r run-NB-hier-ncp}
-fitted_model_NB_hier_ncp <- sampling(comp_model_NB_hier_ncp, data = stan_dat_hier, chains = 4, cores = 4)
+fitted_model_NB_hier_ncp <- sampling(comp_model_NB_hier_ncp, data = stan_dat_hier, chains = 4, cores = 4, control = list(adapt_delta = 0.95))
 ```
 
 Examining the fit of the new model
@@ -1092,16 +1096,25 @@ Rootogram:
 ppc_rootogram(stan_dat_hier$complaints, yrep = y_rep)
 ```
 
+
 ### Varying intercepts _and_ varying slopes
 
-Ok, so these plots look \emph{much} better. Perhaps if the levels of complaints
+We've gotten some new data that'll let us explore how to expand
+the model a bit more with varying slopes along with varying intercepts
+and time-varying intercepts.
+
+```{r}
+stan_dat_hier <- readRDS('data/pest_data_longer_stan_dat.RDS')
+```
+
+Perhaps if the levels of complaints
 differ by building, the coefficient for the effect of traps on building does
 too. We can add this to our model and observe the fit.
 
 $$
 \text{complaints}_{b,t} \sim \text{Neg-Binomial}(\lambda_{b,t}, \phi)  \\
 \lambda_{b,t} = \exp{(\eta_{b,t})}\\
-\eta_{b,t} = \alpha_b + \kappa_b \, \texttt{traps}_{b,t} \\
+\eta_{b,t} = \mu_b + \kappa_b \, \texttt{traps}_{b,t} + \text{log_sq_foot}_b \\
 \mu_b \sim \text{Normal}(\alpha + \texttt{building_data} \, \zeta, \sigma_{\mu}) \\
 \kappa_b \sim \text{Normal}(\beta + \texttt{building_data} \, \gamma, \sigma_{\kappa})
 $$
@@ -1109,7 +1122,7 @@ $$
 Let's compile the model.
 
 ```{r comp-NB-hier-slopes, cache=TRUE, results="hide", message=FALSE}
-comp_model_NB_hier_slopes <- stan_model('stan_programs/hier_NB_regression_ncp_slopes_mod.stan')
+comp_model_NB_hier_slopes <- stan_model('stan_programs/hier_NB_regression_ncp_slopes_mod2.stan')
 ```
 
 Fit the model to data and extract the posterior draws needed for 
@@ -1120,7 +1133,8 @@ fitted_model_NB_hier_slopes <-
   sampling(
     comp_model_NB_hier_slopes,
     data = stan_dat_hier,
-    chains = 4, cores = 4
+    chains = 4, cores = 4,
+    control = list(adapt_delta = 0.95)
   )
 ```
 
@@ -1132,6 +1146,10 @@ mcmc_hist(
   as.matrix(fitted_model_NB_hier_slopes, pars = "sigma_kappa"), 
   binwidth = 0.005
 )
+```
+
+```{r}
+print(fitted_model_NB_hier_slopes, pars = c('kappa','beta','alpha','phi','sigma_mu','sigma_kappa','mu'))
 ```
 
 ```{r}
@@ -1153,9 +1171,6 @@ ppc_dens_overlay(
 )
 ```
 
-[It might be interesting to do more investigation of the model, but I haven't added this yet]
-[We haven't done anything about inference really, we're just hammering in the posterior predictive
-checks. This could motivate informative priors for some of the zeta/gamma regression parameters]
 
 ## Time varying effects and structured priors
 
@@ -1163,20 +1178,19 @@ We haven't looked at how cockroach complaints change over time. Let's look
 at whether there's any pattern over time.
 
 ```{r ppc-group_max-hier-slopes-mean-by-mo}
+select_vec <- which(stan_dat_hier$mo_idx %in% 1:12)
 ppc_stat_grouped(
-  y = stan_dat_hier$complaints, 
-  yrep = y_rep, 
-  group = stan_dat_hier$mo_idx, 
+  y = stan_dat_hier$complaints[select_vec], 
+  yrep = y_rep[,select_vec], 
+  group = stan_dat_hier$mo_idx[select_vec], 
   stat = 'mean'
 ) + xlim(0, 11)
 ```
 
-There's definitely some pattern that we're not capturing. See May, August,
-October, and November for examples. 
-Therefore we might augment our model with a log-additive monthly effect, $\texttt{mo}_t$. 
+We might augment our model with a log-additive monthly effect, $\texttt{mo}_t$. 
 
 $$
-\eta_{b,t} = \mu_b + \kappa_b \, \texttt{traps}_{b,t} + \texttt{mo}_t
+\eta_{b,t} = \mu_b + \kappa_b \, \texttt{traps}_{b,t} + \texttt{mo}_t + \text{log_sq_foot}_b
 $$
 
 We have complete freedom over how to specify the prior for $\texttt{mo}_t$. There are 
@@ -1217,7 +1231,8 @@ Then we can put a beta prior on $\rho_\text{raw}$ to push our estimate towards 0
 One further wrinkle is that we have a prior for $\texttt{mo}_t$ that depends on
 $\texttt{mo}_{t-1}$. What should we do about the prior for $\texttt{mo}_1$? We
 need to work out the marginal distribution of the first observation. We can use
-the fact that AR models are stationary, so $\text{Var}(\texttt{mo}_t) = \text{Var}(\texttt{mo}_{t-1})$
+the fact that AR models are stationary, so 
+$\text{Var}(\texttt{mo}_t) = \text{Var}(\texttt{mo}_{t-1})$
 and $\mathbb{E}(\texttt{mo}_t) = \mathbb{E}(\texttt{mo}_{t-1})$.
 
 $$
@@ -1232,7 +1247,7 @@ $$
 \mathbb{E}(\texttt{mo}_1) = \mathbb{E}(\rho \, \texttt{mo}_{0}) + 0 \\
 \mathbb{E}(\texttt{mo}_1) = \rho \, \mathbb{E}(\texttt{mo}_{1})
 $$
-which for $\rho \neq 0$ yields $\mathbb{E}(\texttt{mo}_{1}) = 0$. So, 
+which for $\rho \neq 1$ yields $\mathbb{E}(\texttt{mo}_{1}) = 0$. So, 
 
 $$
 \texttt{mo}_1 \sim \text{Normal}\left(0, \frac{\sigma_\texttt{mo}}{\sqrt{1 - \rho^2}}\right) \\
@@ -1240,11 +1255,11 @@ $$
 $$
 
 ```{r comp-NB-hier-mos, cache=TRUE, results="hide", message=FALSE}
-comp_model_NB_hier_mos <- stan_model('stan_programs/hier_NB_regression_ncp_slopes_mod_mos.stan')
+comp_model_NB_hier_mos <- stan_model('stan_programs/hier_NB_regression_ncp_slopes_mod_mos2.stan')
 ```
 
 ```{r run-NB-hier-slopes-mos}
-fitted_model_NB_hier_mos <- sampling(comp_model_NB_hier_mos, data = stan_dat_hier, chains = 4, cores = 4)
+fitted_model_NB_hier_mos <- sampling(comp_model_NB_hier_mos, data = stan_dat_hier, chains = 4, cores = 4, control = list(adapt_delta = 0.9))
 ```
 
 In the interest of brevity, we won't go on expanding the model, though we certainly could.
@@ -1253,10 +1268,6 @@ other aspects of the data generating process might we want to capture that we're
 capturing now?
 
 As usual, we run through our posterior predictive checks.
-
-```{r}
-print(fitted_model_NB_hier_mos, pars = c('zeta','alpha','sigma_kappa','sigma_mu','phi','rho','beta','alpha','gamma'))
-```
 
 ```{r ppc-full-hier-mos}
 y_rep <- as.matrix(fitted_model_NB_hier_mos, pars = "y_rep")
@@ -1267,36 +1278,49 @@ ppc_dens_overlay(
 ```
 
 ```{r}
+select_vec <- which(stan_dat_hier$mo_idx %in% 1:12)
 ppc_stat_grouped(
-  y = stan_dat_hier$complaints, 
-  yrep = y_rep, 
-  group = stan_dat_hier$mo_idx, 
+  y = stan_dat_hier$complaints[select_vec], 
+  yrep = y_rep[,select_vec], 
+  group = stan_dat_hier$mo_idx[select_vec], 
   stat = 'mean'
-) + xlim(0, 10)
+) 
 ```
 
-As we can see, our monthly random intercept has captured a monthly
-pattern across all the buildings.
+As we can see, our monthly random intercept has captured a monthly pattern
+across all the buildings. We can also compare the prior and posterior for the
+autoregressive parameter to see how much we've learned. Here are two different
+ways of comparing the prior and posterior visually:
 
 ```{r}
-gen_beta <- function(x) {
-  alpha <- 10
-  bet <- 5
-  a <- -1
-  c <- 1
-  lp <- (alpha - 1) * log(x - a) + (bet - 1) * log(c - x) - (alpha + bet - 1) * log(c - a) - lbeta(alpha, bet)
+# 1) compare draws from prior and draws from posterior
+rho_draws <- cbind(
+  2 * rbeta(4000, 10, 5) - 1, # draw from prior
+  as.matrix(fitted_model_NB_hier_mos, pars = "rho")
+)
+colnames(rho_draws) <- c("prior", "posterior")
+mcmc_hist(rho_draws, freq = FALSE, binwidth = 0.025,
+          facet_args = list(nrow = 2)) + xlim(-1, 1)
+
+
+# 2) overlay prior density curve on posterior draws
+gen_rho_prior <- function(x) {
+  alpha <- 10; beta <- 5
+  a <- -1; c <- 1
+  lp <- (alpha - 1) * log(x - a) + 
+        (beta - 1) * log(c - x) - 
+        (alpha + beta - 1) * log(c - a) - 
+         lbeta(alpha, beta)
   return(exp(lp))
 }
-mcmc_hist(
-  as.matrix(fitted_model_NB_hier_mos, pars = "rho"), freq=F,
-  binwidth = 0.01
-) + overlay_function(fun = gen_beta)
+mcmc_hist(as.matrix(fitted_model_NB_hier_mos, pars = "rho"), 
+          freq = FALSE, binwidth = 0.01) +
+  overlay_function(fun = gen_rho_prior) + 
+  xlim(-1,1)
 ```
-
-[Ask Jonah how to plot the prior vs. the posterior in bayesplot]
-
-The posterior is pretty much the prior distribution for rho, which is to be expected
-because we have so few months of data.
+```{r}
+print(fitted_model_NB_hier_mos, pars = c('rho','sigma_mu','sigma_kappa','gamma'))
+```
 
 ```{r}
 ppc_intervals(
@@ -1309,7 +1333,8 @@ ppc_intervals(
 
 It looks as if our model finally generates a reasonable posterior predictive
 distribution for all numbers of traps, and appropriately captures the tails of the 
-date generating process.
+data generating process.
+
 
 ## Using our model: Cost forecasts
 
@@ -1319,26 +1344,16 @@ a forecast for 6 months forward.
 
 ```{r comp-rev, cache=TRUE, results="hide", message=FALSE}
 comp_rev <- stan_model('stan_programs/hier_NB_regression_ncp_slopes_mod_mos_predict.stan')
+print(comp_rev)
 ```
 
-In our generated quantities block, we need access to the building-level exposure, but
-we've only provided the model an observational-level exposure. We create that below,
-in addition to the number of months we wish to simulate complaints for.
-
-[Double check the indices for the log_sq_foot_pred]
-```{r prep-NB-hier-rev}
-stan_dat_hier$log_sq_foot_pred <- pest_data %>% arrange(building_idx) %>% mutate(
-  log_exposure = log(total_sq_foot/1e4)
-) %>% group_by(building_idx) %>% summarise( log_exposure = first(log_exposure)) %>% .$log_exposure
-stan_dat_hier$M_forward <- 12
-```
-
-Another important input to the revenue model is how much revenue is lost to each
+An important input to the revenue model is how much revenue is lost due to each
 complaint. The client has a policy that for every 10 complaints, they'll call an
 exterminator costing the client \$100, so that'll amount to \$10 per complaint.
 
 ```{r run-NB-hier-rev}
-rev_model <- sampling(comp_rev, data = stan_dat_hier, chains = 4, cores = 4, iter = 2000)
+rev_model <- sampling(comp_rev, data = stan_dat_hier, cores = 4,
+                      control = list(adapt_delta = 0.9))
 ```
 
 Below we've generated our revenue curves for the buildings. These charts will
@@ -1355,54 +1370,84 @@ plus monthly replenishment of the bait material is about \$20.
 
 ```{r materials-cost-formulation}
 N_traps <- 20
-costs <- 10*(1:N_traps) 
+costs <- 10 * (0:N_traps) 
 ```
 
-We'll also need labor for maintaining the bait stations. If there are fewer than
-5 traps, our in-house maintenance staff can manage the stations (about 1 hour
-per month of work at \$20/hour), but above 5 we need to hire outside pest
-control to help out. They're a bit more expensive, so we've put their cost at
-\$30 / hour. Each 5 traps should require an extra person-hour of work, so that's
+We'll also need labor for maintaining the bait stations, which need to be
+serviced every two months. If there are fewer than five traps, our in-house
+maintenance staff can manage the stations (about one hour of work every two
+months at \$20/hour), but above five traps we need to hire outside pest control
+to help out. They're a bit more expensive, so we've put their cost at \$30 /
+hour. Each five traps should require an extra person-hour of work, so that's
 factored in as well. The marginal person-person hours above five traps are at
 the higher pest-control-labor rate.
 
 ```{r labor-cost-formulation}
-costs <- costs + (1:N_traps < 5)*(6*20) + (1:N_traps >= 5 & 1:N_traps < 10)*(6*(20 + 30)) + (1:N_traps >= 10 & 1:N_traps < 15)*(6*(20 + 2 * 30)) +  + (1:N_traps >= 15) * (6*(20 + 3 * 30))
+N_months_forward <- 12
+N_months_labor <- N_months_forward / 2
+hourly_rate_low <- 20
+hourly_rate_high <- 30
+costs <- costs + 
+  (0:N_traps < 5 & 0:N_traps > 0) * (N_months_labor * hourly_rate_low) + 
+  (0:N_traps >= 5 & 0:N_traps < 10) * (N_months_labor * (hourly_rate_low + 1 * hourly_rate_high)) + 
+  (0:N_traps >= 10 & 0:N_traps < 15) * (N_months_labor * (hourly_rate_low + 2 * hourly_rate_high)) + 
+  (0:N_traps >= 15) * (N_months_labor * (hourly_rate_low + 3 * hourly_rate_high))
 ```
 
-Now we build the revenue curves.
+We can now plot curves with number of traps on the x-axis and profit/loss
+forecasts and uncertainty intervals on the y-axis.
 
 ```{r rev-curves, fig.width = 6, fig.height = 8}
 # extract as a list for convenience below
 samps_rev <- rstan::extract(rev_model)
-tot_profit <- sweep(samps_rev$rev_rep_potential,c(3),STATS = costs, FUN = '-')
-mean_profit <- apply(tot_profit,c(2,3),median)
-lower_profit <- apply(tot_profit,c(2,3),quantile,0.25)
-upper_profit <- apply(tot_profit,c(2,3),quantile,0.75)
-profit_df <- data.frame(profit = as.vector(t(mean_profit)), lower = as.vector(t(lower_profit)),
-                     upper = as.vector(t(upper_profit)),
-                     traps = rep(1:N_traps,N_buildings),
-                     building_id = as.vector(sapply(1:N_buildings,rep,N_traps)))
+
+# total and mean profit
+tot_profit <- sweep(samps_rev$rev_, 3, STATS = costs, FUN = '-')
+mean_profit <- t(apply(tot_profit, c(2, 3), median))
+
+# lower and upper ends of 50% central interval
+lower_profit <- t(apply(tot_profit, c(2, 3), quantile, 0.25))
+upper_profit <- t(apply(tot_profit, c(2, 3), quantile, 0.75))
+
+profit_df <-
+  data.frame(
+    profit = as.vector(mean_profit),
+    lower = as.vector(lower_profit),
+    upper = as.vector(upper_profit),
+    traps = rep(0:N_traps, times = N_buildings),
+    building = rep(1:N_buildings, each = N_traps + 1)
+  )
 ggplot(data = profit_df, aes(x = traps, y = profit)) +
-  geom_ribbon(aes(ymin = lower, ymax = upper), fill="grey70") + geom_line() +
-  facet_wrap(~ building_id, scales = 'free_y', ncol = 2)
+  geom_ribbon(aes(ymin = lower, ymax = upper), fill = "grey70") + 
+  geom_line() +
+  facet_wrap(~ building, scales = 'free_y', ncol = 2)
 ```
 
 We can can see that the optimal number of bait stations differs by building.
-How would we build a revenue curve for a new building?
+
+
+<br>
 
 Left as an exercise for the reader: 
 
-Let's say our utility function is revenue. If we wanted to maximize expected
+* How would we build a revenue curve for a new building?
+
+* Let's say our utility function is revenue. If we wanted to maximize expected
 revenue, we can take expectations at each station count for each building, and
 choose the trap numbers that maximizes expected revenue. This will be called a
-maximum revenue strategy.
+maximum revenue strategy. How can we generate the distribution of portfolio
+revenue (i.e. the sum of revenue across all the buildings) under the maximum
+revenue strategy from the the draws of `rev_pred` we already have?
 
-How can we generate the distribution of portfolio revenue (i.e. the sum of 
-revenue across all the buildings) under the maximum revenue strategy from the
-posterior draws of $\texttt{rev_rep_potential}$ we already have from
-$\texttt{samps_rev}$?
 
+### Gaussian process instead of AR(1)
+```{r comp-NB-hier-mos, cache=TRUE, results="hide", message=FALSE}
+comp_model_NB_hier_gp <- stan_model('stan_programs/hier_NB_regression_ncp_slopes_mod_mos_gp.stan')
+```
+
+```{r run-NB-hier-slopes-mos}
+fitted_model_NB_hier_gp <- sampling(comp_model_NB_hier_gp, data = stan_dat_hier, chains = 4, cores = 4, control = list(adapt_delta = 0.9))
+```
 
 # Useful resources: 
 
@@ -1417,4 +1462,4 @@ $\texttt{samps_rev}$?
 * [Interactive MCMC demos](https://chi-feng.github.io/mcmc-demo/)
 * Paper: [_A Conceptual Introduction to Hamiltonian Monte Carlo_](https://arxiv.org/abs/1701.02434)
 * Paper: [_Visualization in Bayesian Workflow_](https://github.com/jgabry/bayes-vis-paper#readme)
-
+* Link to prophet package
