@@ -1499,6 +1499,18 @@ length_scale_draws <- cbind(
 mcmc_areas(length_scale_draws)
 ```
 
+From the plot above it only looks like we learned a small amount, however we can 
+see a bigger difference between the prior and posterior if we consider how much 
+we learned about the ratio of `sigma_gp` to the length scale `gp_len`: 
+
+```{r}
+noise_to_length_scale_ratio_draws <- cbind(
+  prior = abs(rnorm(4000)) / rgamma(4000, 10, 2),
+  posterior = samps_gp$sigma_gp / samps_gp$gp_len
+)
+mcmc_areas(noise_to_length_scale_ratio_draws)
+```
+
 And let's compare the estimates for the time varying parameters between the 
 AR(1) and GP. In this case the posterior mean of the time trend is essentially 
 the same for the AR(1) and GP priors but the 50% uncertainty intervals are 
