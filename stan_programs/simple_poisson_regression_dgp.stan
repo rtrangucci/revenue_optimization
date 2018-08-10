@@ -7,8 +7,8 @@ model {
 generated quantities {
   int traps[N];
   int complaints[N];
-  real alpha = normal_rng(3, 1);
-  real beta = normal_rng(-0.25, 1);
+  real alpha = normal_rng(log(4), .1);
+  real beta = normal_rng(-0.25, .1);
   
   for (n in 1:N)  {
     traps[n] = poisson_rng(mean_traps);

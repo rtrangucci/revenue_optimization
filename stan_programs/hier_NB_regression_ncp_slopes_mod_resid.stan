@@ -43,7 +43,7 @@ model {
   std_betas ~ normal(0,1) ;
   sigma_alpha ~ normal(0, 1);
   sigma_beta ~ normal(0, 1);
-  alpha ~ normal(0, 1);
+  alpha ~ normal(log(4), 1);
   zeta ~ normal(0, 1);
   gamma ~ normal(0, 1);
   inv_prec ~ normal(0, 1);

@@ -8,13 +8,13 @@ generated quantities {
   int live_in_super[N];
   int traps[N];
   int complaints[N];
-  real alpha = normal_rng(0, 2.5);
-  real beta =  normal_rng(-0.25, 1);
-  real beta_super = normal_rng(-0.5, 1);
+  real alpha = normal_rng(log(4), .1);
+  real beta = normal_rng(-0.25, .1);
+  real beta_super = normal_rng(-0.5, .1);
   real inv_phi = fabs(normal_rng(0,1));
 
   for (n in 1:N) {
-    log_sq_foot[n] = normal_rng(1, 1);
+    log_sq_foot[n] = normal_rng(1.5, .1);
     live_in_super[n] = bernoulli_rng(0.5);
     traps[n] = poisson_rng(8);
     complaints[n] = neg_binomial_2_log_rng(alpha + log_sq_foot[n] 

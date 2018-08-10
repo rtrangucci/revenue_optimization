@@ -55,7 +55,7 @@ model {
   
   mu_raw ~ normal(0,1) ;
   sigma_mu ~ normal(0, 1);
-  alpha ~ normal(0, 1);
+  alpha ~ normal(log(4), 1);
   zeta ~ normal(0, 1);
   
   complaints ~ neg_binomial_2_log(mu[building_idx] + kappa[building_idx] .* traps  + log_sq_foot,

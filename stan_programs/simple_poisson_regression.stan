@@ -20,9 +20,11 @@ parameters {
   real beta;
 }
 model {
-  // priors for slope and intercept
+  // weakly informative priors:
+  // we expect negative slope on traps and a positive intercept,
+  // but we will allow ourselves to be wrong
   beta ~ normal(-0.25, 1);
-  alpha ~ normal(3, 1);
+  alpha ~ normal(log(4), 1);
   
   // poisson_log(eta) is more efficient and stable alternative to poisson(exp(eta))
   complaints ~ poisson_log(alpha + beta * traps);

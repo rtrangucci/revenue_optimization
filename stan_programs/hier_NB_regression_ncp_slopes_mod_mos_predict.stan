@@ -83,7 +83,7 @@ model {
   
   mu_raw ~ normal(0,1) ;
   sigma_mu ~ normal(0, 1);
-  alpha ~ normal(0, 1);
+  alpha ~ normal(log(4), 1);
   zeta ~ normal(0, 1);
   
   mo_raw ~ normal(0,1);

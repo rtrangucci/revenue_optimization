@@ -24,8 +24,8 @@ parameters {
 }
 model {
   beta ~ normal(-0.25, 1);
-  alpha ~ normal(0, 5);
   beta_super ~ normal(-0.5, 1);
+  alpha ~ normal(log(4), 1);
   
   complaints ~ poisson_log(alpha + beta * traps + beta_super * live_in_super + log_sq_foot);
 } 

@@ -273,10 +273,10 @@ true_alpha_beta <- c(samps_dgp$alpha, samps_dgp$beta)
 mcmc_recover_hist(posterior_alpha_beta, true = true_alpha_beta)
 ```
 
-It's possible we dont' do a great job recovering the parameters here simply
-because we're simulating so few observations that the posterior uncertainty
-remains rather large, but it looks at least plausible. 
-If we did the simulation with many more observations the
+We don't do a great job recovering the parameters here simply because we're
+simulating so few observations that the posterior uncertainty remains rather
+large, but it looks at least _plausible_ ($\alpha$ and $\beta$ are contained
+within the histograms). If we did the simulation with many more observations the
 parameters would be estimated much more precisely.
 
 We should also check if the `y_rep` datasets (in-sample predictions) that we coded 
@@ -288,27 +288,19 @@ are a good resource on this topic.)
 Here is a plot of the density estimate of the observed data compared to 
 200 of the `y_rep` datasets: 
 ```{r}
+y_rep <- as.matrix(fit_model_P, pars = "y_rep")
 ppc_dens_overlay(y = stan_dat_fake$complaints, yrep = y_rep[1:200, ])
 ```
+In the plot above we have the kernel density estimate of the observed data ($y$,
+thicker curve) and 200 simulated data sets ($y_{rep}$, thin curves) from the
+posterior predictive distribution. If the model fits the data well, as it does
+here, there is little difference between the observed dataset and the simulated
+datasets.
 
-
-One common check for regression models is to plot the residuals against the
-observed values for $y$. While this plot is what we would expect for a Poisson
-regression, it is relatively hard to interpret:
-
-```{r}
-y_rep <- as.matrix(fit_model_P, pars = "y_rep")
-dim(y_rep)
-
-mean_y_rep <- colMeans(y_rep)
-std_resid <- (stan_dat_fake$complaints - mean_y_rep) / sqrt(mean_y_rep)
-qplot(mean_y_rep, std_resid) + hline_at(2) + hline_at(-2)
-```
-
-One alternative to this is a rootogram. This is a plot of the expected counts
-(continuous line) vs the observed counts (blue histogram). We can see the model
-fits well because the observed histogram matched the expected counts relatively
-well.
+Another plot we can make for count data is a rootogram. This is a plot of the
+expected counts (continuous line) vs the observed counts (blue histogram). We
+can see the model fits well because the observed histogram matches the expected
+counts relatively well.
 
 ```{r}
 ppc_rootogram(stan_dat_fake$complaints, yrep = y_rep)
@@ -361,14 +353,10 @@ y_rep <- as.matrix(fit_P_real_data, pars = "y_rep")
 ppc_dens_overlay(y = stan_dat_simple$complaints, y_rep[1:200,])
 ```
 
-This is a plot of the kernel density estimates of the observed data ($y$,
-thicker curve) and 200 simulated data sets ($y_{rep}$, thin curves) from the
-posterior predictive distribution. If the model was fitting the data well, there
-would be little difference between the observed density and the simulated
-density. However, as you can see here, the simulated density is not as dispersed
-as the kernel density of the observed data, and doesn't seem to capture the rate
-of zeros in the observed data. This indicates that the Poisson model may not be
-the best model to use for this data.
+As opposed to when we fit the model to simulated data above, here the simulated
+datasets is not as dispersed as the observed data and don't seem to capture the
+rate of zeros in the observed data. The Poisson model may not be sufficient for
+this data.
 
 Let's explore this further by looking directly at the proportion of zeros in the
 real data and predicted data.
@@ -402,7 +390,7 @@ ppc_rootogram(stan_dat_simple$complaints, yrep = y_rep)
 
 If the model was fitting well these would be relatively similar, however in this
 figure we can see the number of complaints is underestimated if there are few
-complaints, over-estimated for medium numbers of complaints and underestimated
+complaints, over-estimated for medium numbers of complaints, and underestimated
 if there are a large number of complaints.
 
 We can also view how the predicted number of complaints varies with the number
@@ -478,18 +466,15 @@ stan_dat_simple$live_in_super <- pest_data$live_in_super
 
 ### Stan program for Poisson multiple regression
 
+Now we need a new Stan model that uses multiple predictors.
+
 * Write `multiple_poisson_regression.stan` together
 
-### Simlute fake data with multiple predictors
-
-Now we need a new Stan model that uses multiple predictorst. Firs we have to
-compile `multiple_poisson_regression_dgp.stan`.
+### Simulate fake data with multiple predictors
 
 ```{r compmultPDGP, cache=TRUE, results="hide", message=FALSE}
 comp_dgp_multiple <- stan_model('stan_programs/multiple_poisson_regression_dgp.stan')
 ```
-
-Then we generate some fake data from this model. 
 
 ```{r runpoissondgp2}
 fitted_model_dgp <-
@@ -505,7 +490,7 @@ fitted_model_dgp <-
 samps_dgp <- rstan::extract(fitted_model_dgp)
 ```
 
-Now pop that data into a list ready for Stan. 
+Now pop that simulated data into a list ready for Stan. 
 
 ```{r}
 stan_dat_fake <- list(
@@ -532,8 +517,8 @@ true_alpha_beta <- c(samps_dgp$alpha,samps_dgp$beta,samps_dgp$beta_super)
 mcmc_recover_hist(posterior_alpha_beta, true = true_alpha_beta)
 ```
 
-We've recovered the parameters well, so we've probably coded the Stan program
-correctly and we're ready to fit the real data.
+We've recovered the parameters sufficiently well, so we've probably coded the
+Stan program correctly and we're ready to fit the real data.
 
 ### Fit the real data
 
@@ -719,7 +704,7 @@ std_resid <- (stan_dat_simple$complaints - mean_y_rep) / sqrt(mean_y_rep + mean_
 qplot(mean_y_rep, std_resid) + hline_at(2) + hline_at(-2)
 ```
 
-Looks ok, but we still have some large standardized residuals. This might be
+Looks ok, but we still have some very large _standardized_ residuals. This might be
 because we are currently ignoring that the data are clustered by buildings, and
 that the probability of roach issue may vary substantially across buildings.
 
@@ -733,6 +718,7 @@ complaints. However, we still have some larger counts that appear
 to be outliers for the model.
 
 Check predictions by number of traps: 
+
 ```{r}
 ppc_intervals(
   y = stan_dat_simple$complaints, 
@@ -751,15 +737,15 @@ ppc_stat_grouped(
   y = stan_dat_simple$complaints, 
   yrep = y_rep, 
   group = pest_data$building_id, 
-  stat = 'mean', 
-  binwidth = 0.5
+  stat = 'mean',
+  binwidth = 0.1
 )
 ```
 
 We're getting plausible predictions for most building means but some are
-estimated better than others and some have very large uncertainties. If we
-explicitly model the variation across buildings we may be able to get 
-much better estimates. 
+estimated better than others and some have larger uncertainties than we might
+expect. If we explicitly model the variation across buildings we may be able to
+get much better estimates.
 
 ## Hierarchical modeling
 
@@ -1074,12 +1060,25 @@ means of the quantity of building complaints by month.
 ppc_stat_grouped(
   y = stan_dat_hier$complaints, 
   yrep = y_rep,
-  group = stan_dat_hier$building_idx, 
-  stat = 'mean'
+  group = pest_data$building_id, 
+  stat = 'mean', 
+  binwidth = 0.5
 )
 ```
 
-The building means appear to be well-captured by our model.
+We weren't doing terribly with the building-specific means before, but now they
+are all well-captured by our model. The model is also able to do a decent job
+estimating within-building variability:
+
+```{r}
+ppc_stat_grouped(
+  y = stan_dat_hier$complaints, 
+  yrep = y_rep,
+  group = pest_data$building_id, 
+  stat = 'sd', 
+  binwidth = 0.5
+)
+```
 
 Predictions by number of traps:
 
@@ -1108,17 +1107,18 @@ ppc_rootogram(stan_dat_hier$complaints, yrep = y_rep)
 
 ### Varying intercepts _and_ varying slopes
 
-We've gotten some new data that'll let us explore how to expand
-the model a bit more with varying slopes along with varying intercepts
-and time-varying intercepts.
+We've gotten some new data that extends the number of time points for which we
+have observations for each building. This will let us explore how to expand the
+model a bit more with varying _slopes_ in addition to the varying intercepts
+and also, later, also model temporal variation.
 
 ```{r}
 stan_dat_hier <- readRDS('data/pest_data_longer_stan_dat.RDS')
 ```
 
-Perhaps if the levels of complaints
-differ by building, the coefficient for the effect of traps on building does
-too. We can add this to our model and observe the fit.
+Perhaps if the levels of complaints differ by building, the coefficient for the
+effect of traps on building does too. We can add this to our model and observe
+the fit.
 
 $$
 \text{complaints}_{b,t} \sim \text{Neg-Binomial}(\lambda_{b,t}, \phi)  \\
@@ -1131,7 +1131,7 @@ $$
 Let's compile the model.
 
 ```{r comp-NB-hier-slopes, cache=TRUE, results="hide", message=FALSE}
-comp_model_NB_hier_slopes <- stan_model('stan_programs/hier_NB_regression_ncp_slopes_mod2.stan')
+comp_model_NB_hier_slopes <- stan_model('stan_programs/hier_NB_regression_ncp_slopes_mod.stan')
 ```
 
 Fit the model to data and extract the posterior draws needed for 
@@ -1238,49 +1238,54 @@ $$
 Then we can put a beta prior on $\rho_\text{raw}$ to push our estimate towards 0.5.
 
 One further wrinkle is that we have a prior for $\texttt{mo}_t$ that depends on
-$\texttt{mo}_{t-1}$. What should we do about the prior for $\texttt{mo}_1$,
-which doesn't have a previous time period in the data? We need to work out the
-marginal distribution of the first observation. We can use the fact that AR
-models are stationary, so
-$\text{Var}(\texttt{mo}_t) = \text{Var}(\texttt{mo}_{t-1})$
-and $\mathbb{E}(\texttt{mo}_t) = \mathbb{E}(\texttt{mo}_{t-1})$ for all $t$.
+$\texttt{mo}_{t-1}$. That is, we are working with the _conditional_ distribution 
+of $\texttt{mo}_t$ given $\texttt{mo}_{t-1}$. 
+But what should we do about the prior for $\texttt{mo}_1$, for which we don't
+have a previous time period in the data?
 
-First we derive the marginal variance of $\texttt{mo}_{1}$:
+We need to work out the _marginal_ distribution of the first observation.
+Thankfully we can use the fact that AR models are stationary, so
+$\text{Var}(\texttt{mo}_t) = \text{Var}(\texttt{mo}_{t-1})$ and
+$\mathbb{E}(\texttt{mo}_t) = \mathbb{E}(\texttt{mo}_{t-1})$ for all $t$.
+Therefore the marginal distribution of $\texttt{mo}_1$ is the same as the
+marginal distribution of any $\texttt{mo}_t$.
+
+First we derive the marginal variance of $\texttt{mo}_{t}$. 
 
 $$
-\text{Var}(\texttt{mo}_1) = \text{Var}(\rho \texttt{mo}_{0} + \epsilon_1)  \\
-\text{Var}(\texttt{mo}_1) = \text{Var}(\rho \texttt{mo}_{0}) + \text{Var}(\epsilon_1)
+\text{Var}(\texttt{mo}_t) = \text{Var}(\rho \texttt{mo}_{t-1} + \epsilon_t)  \\
+\text{Var}(\texttt{mo}_t) = \text{Var}(\rho \texttt{mo}_{t-1}) + \text{Var}(\epsilon_t)
 $$
-where the second line holds by independence of $\epsilon_1$ and $\epsilon_{0})$.
+where the second line holds by independence of $\epsilon_t$ and $\epsilon_{t-1})$.
 Then, using the fact that $Var(cX) = c^2Var(X)$ for a constant $c$ and the fact
-that, by stationarity, $\textrm{Var}(\texttt{mo}_{0}) = \textrm{Var}(\texttt{mo}_{1})$, 
+that, by stationarity, $\textrm{Var}(\texttt{mo}_{t-1}) = \textrm{Var}(\texttt{mo}_{t})$, 
 we then obtain:
 
 $$
-\text{Var}(\texttt{mo}_1)= \rho^2 \text{Var}( \texttt{mo}_{1})  + \sigma_\texttt{mo}^2 \\
-\text{Var}(\texttt{mo}_1) = \frac{\sigma_\texttt{mo}^2}{1 - \rho^2}
+\text{Var}(\texttt{mo}_t)= \rho^2 \text{Var}( \texttt{mo}_{t})  + \sigma_\texttt{mo}^2 \\
+\text{Var}(\texttt{mo}_t) = \frac{\sigma_\texttt{mo}^2}{1 - \rho^2}
 $$
 
-For the mean of $\texttt{mo}_1$ things are a bit simpler:
+For the mean of $\texttt{mo}_t$ things are a bit simpler:
 
 $$
-\mathbb{E}(\texttt{mo}_1) = \mathbb{E}(\rho \, \texttt{mo}_{0} + \epsilon_t) \\
-\mathbb{E}(\texttt{mo}_1) = \mathbb{E}(\rho \, \texttt{mo}_{0}) + \mathbb{E}(\epsilon_t) \\
+\mathbb{E}(\texttt{mo}_t) = \mathbb{E}(\rho \, \texttt{mo}_{t-1} + \epsilon_t) \\
+\mathbb{E}(\texttt{mo}_t) = \mathbb{E}(\rho \, \texttt{mo}_{t-1}) + \mathbb{E}(\epsilon_t) \\
 $$
 
 Since $\mathbb{E}(\epsilon_t) = 0$ by assumption we have 
 
 $$
-\mathbb{E}(\texttt{mo}_1) = \mathbb{E}(\rho \, \texttt{mo}_{0})  + 0\\
-\mathbb{E}(\texttt{mo}_1) = \rho \, \mathbb{E}(\texttt{mo}_{1}) \\
-\mathbb{E}(\texttt{mo}_1) - \rho \mathbb{E}(\texttt{mo}_1) = 0  \\
-\mathbb{E}(\texttt{mo}_1) = 0/(1 - \rho)  
+\mathbb{E}(\texttt{mo}_t) = \mathbb{E}(\rho \, \texttt{mo}_{t-1})  + 0\\
+\mathbb{E}(\texttt{mo}_t) = \rho \, \mathbb{E}(\texttt{mo}_{t}) \\
+\mathbb{E}(\texttt{mo}_t) - \rho \mathbb{E}(\texttt{mo}_t) = 0  \\
+\mathbb{E}(\texttt{mo}_t) = 0/(1 - \rho)  
 $$
 
-which for $\rho \neq 1$ yields $\mathbb{E}(\texttt{mo}_{1}) = 0$. 
+which for $\rho \neq 1$ yields $\mathbb{E}(\texttt{mo}_{t}) = 0$. 
 
-We now have the mean and variance for $\texttt{mo}_{1}$ so we can write down 
-the full AR(1) process:
+We now have the marginal distribution for $\texttt{mo}_{t}$, which, in our case, 
+we will use for $\texttt{mo}_1$. The full AR(1) specification is then:
 
 $$
 \texttt{mo}_1 \sim \text{Normal}\left(0, \frac{\sigma_\texttt{mo}}{\sqrt{1 - \rho^2}}\right) \\
@@ -1288,7 +1293,7 @@ $$
 $$
 
 ```{r comp-NB-hier-mos, cache=TRUE, results="hide", message=FALSE}
-comp_model_NB_hier_mos <- stan_model('stan_programs/hier_NB_regression_ncp_slopes_mod_mos2.stan')
+comp_model_NB_hier_mos <- stan_model('stan_programs/hier_NB_regression_ncp_slopes_mod_mos.stan')
 ```
 
 ```{r run-NB-hier-slopes-mos}
@@ -1473,14 +1478,60 @@ revenue (i.e. the sum of revenue across all the buildings) under the maximum
 revenue strategy from the the draws of `rev_pred` we already have?
 
 
-### Gaussian process instead of AR(1)
+## Gaussian process instead of AR(1)
+
 ```{r comp-NB-hier-mos, cache=TRUE, results="hide", message=FALSE}
 comp_model_NB_hier_gp <- stan_model('stan_programs/hier_NB_regression_ncp_slopes_mod_mos_gp.stan')
 ```
 
 ```{r run-NB-hier-slopes-mos}
 fitted_model_NB_hier_gp <- sampling(comp_model_NB_hier_gp, data = stan_dat_hier, chains = 4, cores = 4, control = list(adapt_delta = 0.9))
+samps_gp <- rstan::extract(fitted_model_NB_hier_gp)
 ```
+
+Let's look at the prior vs. posterior for the GP length scale parameter: 
+
+```{r}
+length_scale_draws <- cbind(
+  prior = rgamma(4000, 10, 2),
+  posterior = samps_gp$gp_len
+)
+mcmc_areas(length_scale_draws)
+```
+
+And let's compare the estimates for the time varying parameters between the 
+AR(1) and GP. In this case the posterior mean of the time trend is essentially 
+the same for the AR(1) and GP priors but the 50% uncertainty intervals are 
+narrower for the AR(1):
+
+```{r, message=FALSE, warning=FALSE}
+mo_ar_intervals <- mcmc_intervals_data(as.matrix(fitted_model_NB_hier_mos, pars = "mo"), prob = 0.5)
+mo_gp_intervals <- mcmc_intervals_data(as.matrix(fitted_model_NB_hier_gp, pars = "gp"), prob = 0.5)
+plot_data <- bind_rows(mo_ar_intervals, mo_gp_intervals)
+plot_data$prior <- factor(rep(c("AR1", "GP"), each = 36), levels = c("GP", "AR1"))
+plot_data$time <- rep(1:36, times = 2)
+
+ggplot(plot_data, aes(x = time, y = m, ymin = l, ymax = h, fill = prior)) + 
+  geom_ribbon()
+```
+
+The way we coded the GP also lets us plot a decomposition of the GP into a monthly 
+noise component (`mo_noise` in the Stan code) and the underlying smoothly varying trend 
+(`gp_exp_quad` in the Stan code): 
+
+```{r}
+mo_noise_intervals <- mcmc_intervals_data(as.matrix(fitted_model_NB_hier_gp, pars = "mo_noise"), prob = 0.5)
+gp_exp_quad_intervals <- mcmc_intervals_data(as.matrix(fitted_model_NB_hier_gp, pars = "gp_exp_quad"), prob = 0.5)
+
+plot_data <- bind_rows(mo_noise_intervals, gp_exp_quad_intervals)
+plot_data$time <- rep(1:36, times = 2)
+plot_data$term <- factor(rep(c("Monthly Noise", "Smooth Trend"), each = 36), levels = c("Smooth Trend", "Monthly Noise"))
+
+ggplot(plot_data, aes(x = time, y = m, ymin = l, ymax = h, fill = term)) + 
+  geom_ribbon() + 
+  ylab(NULL)
+```
+
 
 # Useful resources: 
 
@@ -1496,3 +1547,4 @@ fitted_model_NB_hier_gp <- sampling(comp_model_NB_hier_gp, data = stan_dat_hier,
 * Paper: [_A Conceptual Introduction to Hamiltonian Monte Carlo_](https://arxiv.org/abs/1701.02434)
 * Paper: [_Visualization in Bayesian Workflow_](https://github.com/jgabry/bayes-vis-paper#readme)
 * Link to prophet package
+* Link to Mike's GP case study

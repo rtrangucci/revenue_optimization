@@ -28,7 +28,7 @@ transformed parameters {
   real phi = inv(inv_phi);
 }
 model {
-  alpha ~ normal(0, 5);
+  alpha ~ normal(log(4), 1);
   beta ~ normal(-0.25, 1);
   beta_super ~ normal(-0.5, 1);
   inv_phi ~ normal(0, 1);

@@ -40,8 +40,8 @@ transformed parameters {
 model {
   mu ~ normal(alpha + building_data * zeta, sigma_mu);
   sigma_mu ~ normal(0, 1);
-  alpha ~ normal(0, 1);
-  zeta ~ normal(0, 1);
+  alpha ~ normal(log(4), 1);
+  zeta ~ normal(0, 1);  // could also use informative priors on the different elements
   beta ~ normal(-0.25, 1);
   inv_phi ~ normal(0, 1);
   
