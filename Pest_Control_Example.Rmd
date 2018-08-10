@@ -1230,7 +1230,7 @@ which doesn't have a previous time period in the data? We need to work out the
 marginal distribution of the first observation. We can use the fact that AR
 models are stationary, so
 $\text{Var}(\texttt{mo}_t) = \text{Var}(\texttt{mo}_{t-1})$
-and $\mathbb{E}(\texttt{mo}_t) = \mathbb{E}(\texttt{mo}_{t-1})$.
+and $\mathbb{E}(\texttt{mo}_t) = \mathbb{E}(\texttt{mo}_{t-1})$ for all $t$.
 
 $$
 \text{Var}(\texttt{mo}_1) = \text{Var}(\rho \texttt{mo}_{0} + \epsilon_1) \\
