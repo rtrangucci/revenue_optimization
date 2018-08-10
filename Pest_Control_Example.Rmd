@@ -1245,23 +1245,42 @@ models are stationary, so
 $\text{Var}(\texttt{mo}_t) = \text{Var}(\texttt{mo}_{t-1})$
 and $\mathbb{E}(\texttt{mo}_t) = \mathbb{E}(\texttt{mo}_{t-1})$ for all $t$.
 
+First we derive the marginal variance of $\texttt{mo}_{1}$:
+
 $$
-\text{Var}(\texttt{mo}_1) = \text{Var}(\rho \texttt{mo}_{0} + \epsilon_1) \\
-\text{Var}(\texttt{mo}_1) = \text{Var}(\rho \texttt{mo}_{0}) + \text{Var}(\epsilon_1) \quad (\textrm{by independence of } \epsilon_t \, \text{and} \, \epsilon_{t-1})\\
-\text{Var}(\texttt{mo}_1)= \rho^2 \text{Var}( \texttt{mo}_{0}) + \sigma_\texttt{mo}^2 \\
+\text{Var}(\texttt{mo}_1) = \text{Var}(\rho \texttt{mo}_{0} + \epsilon_1)  \\
+\text{Var}(\texttt{mo}_1) = \text{Var}(\rho \texttt{mo}_{0}) + \text{Var}(\epsilon_1)
+$$
+where the second line holds by independence of $\epsilon_1$ and $\epsilon_{0})$.
+Then, using the fact that $Var(cX) = c^2Var(X)$ for a constant $c$ and the fact
+that, by stationarity, $\textrm{Var}(\texttt{mo}_{0}) = \textrm{Var}(\texttt{mo}_{1})$, 
+we then obtain:
+
+$$
 \text{Var}(\texttt{mo}_1)= \rho^2 \text{Var}( \texttt{mo}_{1})  + \sigma_\texttt{mo}^2 \\
 \text{Var}(\texttt{mo}_1) = \frac{\sigma_\texttt{mo}^2}{1 - \rho^2}
 $$
 
+For the mean of $\texttt{mo}_1$ things are a bit simpler:
+
 $$
 \mathbb{E}(\texttt{mo}_1) = \mathbb{E}(\rho \, \texttt{mo}_{0} + \epsilon_t) \\
-\mathbb{E}(\texttt{mo}_1) = \mathbb{E}(\rho \, \texttt{mo}_{0}) + 0 \quad (\mathbb{E}(\epsilon_t) = 0 \, \textrm{by assumption})\\
+\mathbb{E}(\texttt{mo}_1) = \mathbb{E}(\rho \, \texttt{mo}_{0}) + \mathbb{E}(\epsilon_t) \\
+$$
+
+Since $\mathbb{E}(\epsilon_t) = 0$ by assumption we have 
+
+$$
+\mathbb{E}(\texttt{mo}_1) = \mathbb{E}(\rho \, \texttt{mo}_{0})  + 0\\
 \mathbb{E}(\texttt{mo}_1) = \rho \, \mathbb{E}(\texttt{mo}_{1}) \\
-\mathbb{E}(\texttt{mo}_1)(1 - \rho) = 0  \\
+\mathbb{E}(\texttt{mo}_1) - \rho \mathbb{E}(\texttt{mo}_1) = 0  \\
 \mathbb{E}(\texttt{mo}_1) = 0/(1 - \rho)  
 $$
 
-which for $\rho \neq 1$ yields $\mathbb{E}(\texttt{mo}_{1}) = 0$. So, 
+which for $\rho \neq 1$ yields $\mathbb{E}(\texttt{mo}_{1}) = 0$. 
+
+We now have the mean and variance for $\texttt{mo}_{1}$ so we can write down 
+the full AR(1) process:
 
 $$
 \texttt{mo}_1 \sim \text{Normal}\left(0, \frac{\sigma_\texttt{mo}}{\sqrt{1 - \rho^2}}\right) \\
