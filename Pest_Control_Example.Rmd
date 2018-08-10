@@ -756,10 +756,10 @@ ppc_stat_grouped(
 )
 ```
 
-We're getting plausible predictions for most building means but some are estimated 
-better than others and some have very large uncertaintys. This indicates that there
-might be some unobserved building-level variation that we're not capturing with
-the current model.
+We're getting plausible predictions for most building means but some are
+estimated better than others and some have very large uncertainties. If we
+explicitly model the variation across buildings we may be able to get 
+much better estimates. 
 
 ## Hierarchical modeling
 
@@ -867,29 +867,42 @@ stan_dat_hier <-
 Let's compile the model. 
 
 ```{r comp-NB-hier, cache=TRUE, results="hide", message=FALSE}
-comp_model_NB_hier <- stan_model('stan_programs/hier_NB_regression2.stan')
+comp_model_NB_hier <- stan_model('stan_programs/hier_NB_regression.stan')
 ```
 
 Fit the model to data.
 
 ```{r run-NB-hier}
-fitted_model_NB_hier <- sampling(comp_model_NB_hier, data = stan_dat_hier, chains = 4, cores = 4, iter = 4000)
+fitted_model_NB_hier <-
+  sampling(
+  comp_model_NB_hier,
+  data = stan_dat_hier,
+  chains = 4,
+  cores = 4,
+  iter = 4000
+  )
 ```
 
 ### Diagnostics 
 
-We get a bunch of warnings from Stan about divergent transitions. 
+We get a bunch of warnings from Stan about divergent transitions, which is 
+an indication that there may be regions of the posterior that have not been
+explored by the Markov chains.
 
-Divergent transitions are something we need to invesigate further. In this
+Divergences are discussed in more detail in the course slides as well as 
+the **bayesplot** (MCMC diagnostics vignette)[http://mc-stan.org/bayesplot/articles/visual-mcmc-diagnostics.html]
+and [_A Conceptual Introduction to Hamiltonian Monte Carlo_](https://arxiv.org/abs/1701.02434).
+
+In this
 example we will see that we have divergent transitions because we need to
 reparameterize our model - i.e., we will retain the overall structure of the
 model, but transform some of the parameters so that it is easier for Stan to
 sample from the parameter space. Before we go through exactly how to do this
 reparameterization, we will first go through what indicates that this is
-something that reparamerization will be useful for. We will go through:
+something that reparamerization will resolve. We will go through:
 
 1. Examining the fitted parameter values, including the effective sample size
-2. Traces plots and pairs plots, which help us to see whether the divergent transitions have a pattern for any of the parameters. 
+2. Traceplots and scatterplots that reveal particular patterns in locations of the divergences.
 
 First let's extract the fits from the model. 
 
