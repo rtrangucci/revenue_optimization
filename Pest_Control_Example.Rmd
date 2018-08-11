@@ -1517,6 +1517,7 @@ the same for the AR(1) and GP priors but the 50% uncertainty intervals are
 narrower for the AR(1):
 
 ```{r, message=FALSE, warning=FALSE}
+# visualizing 50% intervals
 mo_ar_intervals <- mcmc_intervals_data(as.matrix(fitted_model_NB_hier_mos, pars = "mo"), prob = 0.5)
 mo_gp_intervals <- mcmc_intervals_data(as.matrix(fitted_model_NB_hier_gp, pars = "gp"), prob = 0.5)
 plot_data <- bind_rows(mo_ar_intervals, mo_gp_intervals)
@@ -1524,23 +1525,26 @@ plot_data$prior <- factor(rep(c("AR1", "GP"), each = 36), levels = c("GP", "AR1"
 plot_data$time <- rep(1:36, times = 2)
 
 ggplot(plot_data, aes(x = time, y = m, ymin = l, ymax = h, fill = prior)) + 
-  geom_ribbon()
+  geom_ribbon(alpha = 2/3)
 ```
 
-The way we coded the GP also lets us plot a decomposition of the GP into a monthly 
-noise component (`mo_noise` in the Stan code) and the underlying smoothly varying trend 
-(`gp_exp_quad` in the Stan code): 
+The way we coded the GP also lets us plot a decomposition of the GP into a
+monthly noise component (`mo_noise` in the Stan code) and the underlying
+smoothly varying trend (`gp_exp_quad` in the Stan code):
 
-```{r}
+```{r, message=FALSE, warning=FALSE}
+# visualizing 50% intervals
 mo_noise_intervals <- mcmc_intervals_data(as.matrix(fitted_model_NB_hier_gp, pars = "mo_noise"), prob = 0.5)
 gp_exp_quad_intervals <- mcmc_intervals_data(as.matrix(fitted_model_NB_hier_gp, pars = "gp_exp_quad"), prob = 0.5)
 
 plot_data <- bind_rows(mo_noise_intervals, gp_exp_quad_intervals)
 plot_data$time <- rep(1:36, times = 2)
-plot_data$term <- factor(rep(c("Monthly Noise", "Smooth Trend"), each = 36), levels = c("Smooth Trend", "Monthly Noise"))
+plot_data$term <- factor(rep(c("Monthly Noise", "Smooth Trend"), each = 36), 
+                         levels = c("Smooth Trend", "Monthly Noise"))
 
 ggplot(plot_data, aes(x = time, y = m, ymin = l, ymax = h, fill = term)) + 
-  geom_ribbon() + 
+  geom_ribbon(alpha = 0.5) + 
+  geom_line(aes(color = term), size = 0.5) +
   ylab(NULL)
 ```
 
