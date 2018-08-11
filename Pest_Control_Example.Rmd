@@ -1544,19 +1544,3 @@ ggplot(plot_data, aes(x = time, y = m, ymin = l, ymax = h, fill = term)) +
   ylab(NULL)
 ```
 
-
-# Useful resources: 
-
-[ADD MORE TO THIS]
-
-* [The Stan Forums](http://discourse.mc-stan.org/)
-* [Stan Language Documentation](http://mc-stan.org/users/documentation/)
-* [Stan Case Studies](http://mc-stan.org/users/documentation/case-studies)
-* **rstan** [vignettes](http://mc-stan.org/rstan/articles)
-* **bayesplot** tutorial [vignettes](http://mc-stan.org/bayesplot/articles)
-* **loo** tutorial [vignettes](http://mc-stan.org/loo/articles)
-* [Interactive MCMC demos](https://chi-feng.github.io/mcmc-demo/)
-* Paper: [_A Conceptual Introduction to Hamiltonian Monte Carlo_](https://arxiv.org/abs/1701.02434)
-* Paper: [_Visualization in Bayesian Workflow_](https://github.com/jgabry/bayes-vis-paper#readme)
-* Link to prophet package
-* Link to Mike's GP case study
