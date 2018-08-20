@@ -1613,7 +1613,7 @@ vector[M] mo;
   for (m in 2:M) {
     A[m,m] = sigma_mo;
     for (i in (m + 1):M)
-      A[i,m] = rho^(i-1) * sigma_mo;
+      A[i,m] = rho^(i-m) * sigma_mo;
   }
   mo = A * mo_raw;
 }
@@ -1676,7 +1676,7 @@ vector[M] mo;
   for (m in 1:M) {
     Sigma[m,m] = 1.0;
     for (i in (m + 1):M) {
-      Sigma[i,m] = rho^(i - m) 
+      Sigma[i,m] = rho^(i - m);
       Sigma[m,i] = Sigma[i,m];
     }
   }
@@ -1723,7 +1723,7 @@ $$
 where $\theta$ are the hyperparameters that define the behavior of covariance matrix.
 
 One such function is called the __exponentiated quadratic function__, and it happens
-to be implemented in Stan. The function is defined as:
+to be implemented in Stan as `cov_exp_quad`. The function is defined as:
 
 $$
 \begin{aligned}
@@ -1754,14 +1754,20 @@ $$
 k(t, t+h | \theta) = \alpha^2  \exp \left( - \dfrac{h^2}{2\ell^2} \right) + \text{if } h = 0, \, \sigma^2_\texttt{noise} \text{ else } 0
 $$
 
+### Compiling the GP model
+
 ```{r comp-NB-hier-mos, cache=TRUE, results="hide", message=FALSE}
 comp_model_NB_hier_gp <- stan_model('stan_programs/hier_NB_regression_ncp_slopes_mod_mos_gp.stan')
 ```
+
+### Fitting the GP model to data
 
 ```{r run-NB-hier-slopes-mos}
 fitted_model_NB_hier_gp <- sampling(comp_model_NB_hier_gp, data = stan_dat_hier, chains = 4, cores = 4, control = list(adapt_delta = 0.9))
 samps_gp <- rstan::extract(fitted_model_NB_hier_gp)
 ```
+
+### Examining the fit
 
 Let's look at the prior vs. posterior for the GP length scale parameter: 
 
@@ -1784,6 +1790,10 @@ noise_to_length_scale_ratio_draws <- cbind(
 )
 mcmc_areas(noise_to_length_scale_ratio_draws)
 ```
+
+This is a classic problem with Gaussian processes. Marginally, the length-scale
+parameter isn't very well-identified by the data, but jointly the length-scale and
+the marginal standard deviation are well-identified. 
 
 And let's compare the estimates for the time varying parameters between the 
 AR(1) and GP. In this case the posterior mean of the time trend is essentially 
